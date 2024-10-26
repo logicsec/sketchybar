@@ -88,7 +88,7 @@ Before setting up this configuration, ensure you have the following installed:
 
 1. Clone this repository to your SketchyBar config directory:
    ```bash
-   git clone https://github.com/yourusername/sketchybar-config ~/.config/sketchybar
+   git clone https://github.com/logicsec/sketchybar ~/.config/sketchybar
    ```
 
 2. Make all scripts executable:
