@@ -1,0 +1,84 @@
+#!/bin/bash
+
+DIR="$HOME/.config/sketchybar/"
+ITEM_DIR="$DIR/items"
+PLUGIN_DIR="$DIR/plugins"
+
+FONT="FiraMono Nerd Font"
+ICON_FONT="sf-symbols"
+
+PADDING=6
+
+source "$DIR/colors.sh"
+source "$DIR/icons.sh"
+source "$PLUGIN_DIR/helpers/spacer.sh"
+
+BAR_PROPS=(
+  height=40
+  margin=10
+  shadow=off
+  position=top
+  sticky=on
+  border_color=$BG_SEC_COLR
+  border_width=1
+  padding_right=10
+  padding_left=10
+  corner_radius=8
+  blur_radius=6
+  y_offset=5
+  blur_radius=30
+  notch_width=0
+  color=$BG_PRI_COLR
+)
+
+DEF_PROPS=(
+  updates=when_shown
+  icon.font="$ICON_FONT:Bold:16.0"
+  icon.color=$WHITE
+  icon.padding_left=10
+  icon.padding_right=2
+  label.font="$FONT:SemiBold:12.0"
+  label.color=$WHITE
+  label.padding_left=$PADDING
+  label.padding_right=8
+  background.color=$TRANSPARENT
+  background.padding_right=$PADDING
+  background.padding_left=$PADDING
+  background.height=25
+  background.corner_radius=10
+)
+
+# Function to check if there's only one display
+is_single_display() {
+  local display_count=$(yabai -m query --displays | jq '. | length')
+  local is_single=$(echo "$display_count" | jq '. == 1')
+  echo "Display count: $display_count"
+  echo "Is single: $is_single"
+  return $([ "$is_single" = "true" ] && echo 0 || echo 1)
+}
+
+sketchybar --bar "${BAR_PROPS[@]}"
+sketchybar --default "${DEF_PROPS[@]}"
+
+# -- LEFT Side Items --
+source "$ITEM_DIR/apple.sh"
+source "$ITEM_DIR/spaces.sh"
+source "$ITEM_DIR/front_app.sh"
+source "$ITEM_DIR/focus.sh"
+
+# -- RIGHT Side Items -- 
+source "$ITEM_DIR/profile.sh"
+source "$ITEM_DIR/datetime.sh"
+source "$ITEM_DIR/notifications.sh"
+
+# Laptop Mode
+if ! is_single_display; then
+  source "$ITEM_DIR/metrics.sh"
+  source "$ITEM_DIR/media.sh"
+else
+  echo "Single display detected"
+fi
+
+
+
+sketchybar --update
