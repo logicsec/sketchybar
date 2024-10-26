@@ -128,6 +128,9 @@ Includes plugins for:
 - Network traffic
 - Battery status
 
+### Profile
+Ensure you update the plugins/profile.sh file with your own image path. This is used for the profile menu image. 
+
 ## 🎨 Customization
 
 ### Colors
