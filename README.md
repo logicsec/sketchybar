@@ -1,5 +1,8 @@
 # Custom SketchyBar Configuration
 
+<img width="2558" alt="image" src="https://github.com/user-attachments/assets/98f57dfa-e2e8-4957-8890-d983b772ec01">
+
+
 A highly customized configuration for [SketchyBar](https://github.com/FelixKratz/SketchyBar), featuring various plugins for system monitoring, media control, weather updates, and more.
 
 ## 📋 Prerequisites
