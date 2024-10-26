@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# API uses weatherapi.com
+
 # Load environment variables from .env file
 if [ -f "$HOME/.config/sketchybar/.env" ]; then
     source "$HOME/.config/sketchybar/.env"

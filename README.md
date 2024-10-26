@@ -1,78 +1,169 @@
-# Weather Plugin for SketchyBar
+# Custom SketchyBar Configuration
 
-This plugin displays current weather information in your SketchyBar, including temperature and weather conditions using Weather API.
+A highly customized configuration for [SketchyBar](https://github.com/FelixKratz/SketchyBar), featuring various plugins for system monitoring, media control, weather updates, and more.
 
-## Prerequisites
+## 📋 Prerequisites
 
-- [SketchyBar](https://github.com/FelixKratz/SketchyBar) installed
-- [Weather API](https://www.weatherapi.com/) account and API key
-- `jq` installed for JSON parsing (`brew install jq`)
+Before setting up this configuration, ensure you have the following installed:
 
-## Setup
-
-1. Sign up for a free account at [Weather API](https://www.weatherapi.com/)
-
-2. Create a `.env` file in your SketchyBar config directory:
+1. **SketchyBar**
    ```bash
-   touch ~/.config/sketchybar/.env
+   brew install sketchybar
    ```
 
-3. Add your API key and city to the `.env` file:
+2. **Yabai** (Window Manager)
    ```bash
-   WEATHER_API_KEY="your_api_key_here"
-   WEATHER_CITY="your_city_or_zip_here"
+   brew install koekeishiya/formulae/yabai
    ```
 
-   - Replace `your_api_key_here` with your Weather API key
-   - Replace `your_city_or_zip_here` with your city name, zip code, or coordinates
-     - Examples:
-       - Zip code: "40509"
-       - City name: "London"
-       - Coordinates: "51.5072,0.1276"
-
-4. Make sure the `.env` file is private:
+3. **SF Symbols** (for icons)
    ```bash
-   chmod 600 ~/.config/sketchybar/.env
+   brew install --cask sf-symbols
    ```
 
-5. Add `.env` to your `.gitignore` if you're using git:
+4. **Nerd Fonts** (for additional icons)
    ```bash
-   echo ".env" >> .gitignore
+   brew tap homebrew/cask-fonts
+   brew install --cask font-hack-nerd-font
    ```
 
-## Weather Icons
+5. **SQLite3** (for data management)
+   ```bash
+   brew install sqlite3
+   ```
 
-The plugin uses SF Symbols for weather icons. Different icons are displayed based on:
-- Current weather conditions
-- Time of day (day/night)
-- Severity of weather conditions
+6. **jq** (for JSON parsing)
+   ```bash
+   brew install jq
+   ```
 
-## Troubleshooting
+## 🗂 Repository Structure
 
-If you're not seeing weather information:
+```
+.
+├── items/                  # Item configurations
+│   ├── apple.sh           # Apple menu items
+│   ├── datetime.sh        # Date and time display
+│   ├── focus.sh           # Focus mode settings
+│   ├── front_app.sh       # Front application display
+│   ├── media.sh           # Media controls
+│   ├── metrics.sh         # System metrics
+│   ├── network.sh         # Network status
+│   ├── notifications.sh   # Notification center
+│   ├── profile.sh         # Profile settings
+│   └── spaces.sh          # Workspace spaces
+├── plugins/               # Plugin scripts
+│   ├── helpers/          # Helper functions
+│   ├── launchers/        # Application launchers
+│   ├── apple.sh          # Apple menu functionality
+│   ├── battery.sh        # Battery monitoring
+│   ├── brew.sh           # Homebrew updates
+│   ├── cpu.sh            # CPU monitoring
+│   ├── date.sh           # Date functions
+│   ├── disk.sh           # Disk usage
+│   ├── focus.sh          # Focus mode
+│   ├── front_app.sh      # Active application
+│   ├── icon_map_fn.sh    # Icon mapping
+│   ├── mail.sh           # Mail notifications
+│   ├── media.sh          # Media controls
+│   ├── memory.sh         # RAM usage
+│   ├── messages.sh       # Message notifications
+│   ├── network.sh        # Network monitoring
+│   ├── sound_click.sh    # Sound effects
+│   ├── sound.sh          # Volume control
+│   ├── space.sh          # Space management
+│   ├── time_hm.sh        # Time format
+│   ├── time.sh          # Time display
+│   ├── weather.sh        # Weather information
+│   └── window_title.sh   # Window title display
+├── colors.sh             # Color definitions
+├── icons.sh              # Icon definitions
+└── sketchybarrc         # Main configuration
+```
 
-1. Check your API key is correct in `.env`
-2. Verify your city/location is valid
-3. Check the Weather API service status
-4. Look for error messages in SketchyBar's logs:
+## ⚙️ Setup
+
+1. Clone this repository to your SketchyBar config directory:
+   ```bash
+   git clone https://github.com/yourusername/sketchybar-config ~/.config/sketchybar
+   ```
+
+2. Make all scripts executable:
+   ```bash
+   chmod +x ~/.config/sketchybar/**/*.sh
+   chmod +x ~/.config/sketchybar/*.sh
+   ```
+
+3. Set up environment variables (for plugins that need them):
+   ```bash
+   cp ~/.config/sketchybar/.env.example ~/.config/sketchybar/.env
+   ```
+   Edit the `.env` file with your API keys and preferences.
+
+4. Start SketchyBar:
+   ```bash
+   brew services start sketchybar
+   ```
+
+## 🔧 Configuration
+
+### Weather Plugin
+Requires a Weather API key. See [weather setup](./plugins/weather.md) for details.
+
+### Focus Mode
+Integrates with macOS Focus modes. Configure in `plugins/focus.sh`.
+
+### Media Controls
+Supports various media players including:
+- Apple Music
+- Spotify
+- Chrome
+- Safari
+
+### System Monitoring
+Includes plugins for:
+- CPU usage
+- Memory usage
+- Disk space
+- Network traffic
+- Battery status
+
+## 🎨 Customization
+
+### Colors
+Edit `colors.sh` to modify the color scheme.
+
+### Icons
+Modify `icons.sh` to change icons. This configuration uses:
+- SF Symbols
+- Nerd Fonts
+
+## 🛠 Troubleshooting
+
+1. Check SketchyBar logs:
    ```bash
    tail -f /tmp/sketchybar_log
    ```
 
-## Rate Limits
+2. Verify permissions:
+   ```bash
+   ls -la ~/.config/sketchybar/
+   ```
 
-The free tier of Weather API includes:
-- 1 million calls per month
-- 3 day forecast
-- Real-time weather
-- 7 day history
+3. Reset SketchyBar:
+   ```bash
+   brew services restart sketchybar
+   ```
 
-This plugin makes requests every few minutes, well within these limits.
-
-## Contributing
+## 📝 Contributing
 
 Feel free to submit issues and enhancement requests!
 
-## License
+## 📜 License
 
-This plugin is available under the MIT License.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- [FelixKratz](https://github.com/FelixKratz) for creating SketchyBar
+- Various contributors from the SketchyBar community
