@@ -2,7 +2,7 @@
 
 # Disk configuration
 DISK=(
-  update_freq=60
+  update_freq=30
   label.padding_left=1
   label.padding_right=1
   icon.font="$FONT:Regular:16.0"
@@ -16,7 +16,7 @@ DISK=(
 
 # Memory configuration
 MEMORY=(
-  update_freq=2
+  update_freq=30
   label.padding_left=1
   label.padding_right=1
   icon.font="$FONT:Regular:16.0"
@@ -30,7 +30,7 @@ MEMORY=(
 
 # CPU configuration
 CPU=(
-  update_freq=2
+  update_freq=30
   icon.font="$FONT:Regular:16.0"
   icon=􀫥
   icon.padding_left=2

@@ -3,6 +3,7 @@
 media=(
     script="$PLUGIN_DIR/media.sh"
     updates=on
+    label="No Media Playing"
     background.color=$NORD_BG1
     background.corner_radius=5
     background.height=25
@@ -11,8 +12,8 @@ media=(
     background.border_color=$NORD_BORDER
     background.border_width=1
     padding_right=10
-    width=170          # Add fixed width
-    label.width=150    # Add fixed label width
+    width=150          # Add fixed width
+    label.width=90    # Add fixed label width
     icon.width=20      # Add fixed icon width
     align=left         # Ensure left alignment
 )

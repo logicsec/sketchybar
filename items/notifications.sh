@@ -73,7 +73,7 @@ BATTERY=(
 )
 
 # Sound configuration
-SOUND=(
+VOLUME=(
   icon.color=$NORD_FROST_9
   icon.padding_left=2
   icon.padding_right=5
@@ -115,13 +115,13 @@ sketchybar --add bracket notifications brew mail messages \
 
 sketchybar --add item battery right \
            --set battery "${BATTERY[@]}" \
-           --add item sound right \
-           --set sound "${SOUND[@]}" \
+           --add item volume right \
+           --set volume "${VOLUME[@]}" \
            --add item spacer_notifications_batvol right \
            --set spacer_notifications_batvol background.drawing=off \
            width=10  
 
-sketchybar --add bracket notifications_batvol battery sound \
+sketchybar --add bracket notifications_batvol battery volume \
            --set notifications_batvol background.color=$NORD_BG1 \
                         background.corner_radius=5 \
                         background.height=25 \
