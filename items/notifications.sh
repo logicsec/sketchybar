@@ -4,6 +4,7 @@ source "$PLUGIN_DIR/helpers/spacer.sh"
 
 brew=(
   icon=􀐚
+  update_freq=30
   icon.color=$WHITE
   icon.padding_left=2
   icon.padding_right=5
