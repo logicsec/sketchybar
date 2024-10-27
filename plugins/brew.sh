@@ -16,7 +16,7 @@ case "$COUNT" in
   LABEL_PADDING=1
   ;;
 [1-9])
-  COLOR=$WHITE
+  COLOR=$NORD_WARNING
   LABEL_PADDING=1
   ;;
 0)
