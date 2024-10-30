@@ -17,9 +17,13 @@ update_app_menu() {
   # Get the latest menu items from the binary
   MENU_ITEMS_STR=($($MENUS_BINARY -l 2>&1))
 
-  # Create the menu items
+  # Create the menu items and associate them with the current space
   for (( i=1; i<${#MENU_ITEMS_STR[@]}; i++ )); do
     item_label=${MENU_ITEMS_STR[i]}
+    
+    # Get the space ID of the current focused app
+    space_id=$(yabai -m query --windows --window | jq -r '.space')
+
     sketchybar --add item app_menu.$i left \
       --set app_menu.$i \
         label="$item_label" \
@@ -28,13 +32,15 @@ update_app_menu() {
         background.border_color=$NORD_BORDER \
         background.border_width=1 \
         background.corner_radius=5 \
-        click_script="$MENUS_BINARY -s $i"
+        click_script="$MENUS_BINARY -s $i" \
+        space="$space_id"  # Associate the item with the current space
     MENU_ITEMS+=("app_menu.$i")
   done
 
   # Create the bracket with all items
   sketchybar --add bracket app_menu_bracket "${MENU_ITEMS[@]}" \
-    --set app_menu_bracket updates=on
+    --set app_menu_bracket updates=on \
+    space="$space_id"  # Associate the bracket with the current space
 }
 
 # Function to toggle the app menu visibility
@@ -53,7 +59,7 @@ toggle_app_menu() {
 # Function to handle the front app switch
 front_app_switched() {
   sketchybar --set $NAME label="$INFO" icon="$($CONFIG_DIR/plugins/icon_map_fn.sh "$INFO")" \
-              --subscribe $NAME mouse.clicked
+             --subscribe $NAME mouse.clicked
   update_app_menu
 }
 
