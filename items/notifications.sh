@@ -18,7 +18,7 @@ brew=(
   background.padding_left=5
   background.padding_right=5
   script="$PLUGIN_DIR/brew.sh"
-  click_script="brew update && brew upgrade"
+  click_script="brew update --quiet && brew upgrade --quiet"
 )
 
 mail=(

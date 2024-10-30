@@ -64,7 +64,8 @@ sketchybar --default "${DEF_PROPS[@]}"
 source "$ITEM_DIR/apple.sh"
 source "$ITEM_DIR/spaces.sh"
 source "$ITEM_DIR/front_app.sh"
-source "$ITEM_DIR/focus.sh"
+# source "$ITEM_DIR/menus.sh"
+# source "$ITEM_DIR/focus.sh"
 
 # -- RIGHT Side Items -- 
 source "$ITEM_DIR/profile.sh"
