@@ -32,7 +32,7 @@ update_app_menu() {
         background.border_color=$NORD_BORDER \
         background.border_width=1 \
         background.corner_radius=5 \
-        click_script="$MENUS_BINARY -s $((i + 1))" \  # Adjust index for click_script to start from 2
+        click_script="$MENUS_BINARY -s $((i + 1))" \
         space="$space_id"  # Associate the item with the current space
     MENU_ITEMS+=("app_menu.$i")
   done
