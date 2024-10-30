@@ -3,7 +3,7 @@
 # Define the main apple item properties
 APPLE=(
   icon=$APPLE_ICON
-  icon.color=$NORD_DANGER
+  icon.color=$RED
   icon.padding_left=10
   icon.padding_right=5
   label.drawing=off
@@ -11,9 +11,9 @@ APPLE=(
   background.corner_radius=5
   background.height=25
   click_script="sketchybar -m --set \$NAME popup.drawing=toggle" \
-  popup.background.border_width=2 \
+  popup.background.border_width=1 \
   popup.background.border_color=$NORD_BORDER \
-  popup.background.corner_radius=10 \
+  popup.background.corner_radius=2 \
   popup.background.color=$BG_PRI_COLR \
   popup.background.drawing=on \
   popup.y_offset=0 \

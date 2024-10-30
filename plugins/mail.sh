@@ -24,31 +24,31 @@ COLOR=$RED
 case "$COUNT" in
     # 30-59 unread emails
     [3-5][0-9])
-        ICON_COLOR=$NORD_DANGER
+        ICON_COLOR=$RED
         LABEL_COLOR=$WHITE
         LABEL_PADDING=1
         ;;
     # 10-29 unread emails
     [1-2][0-9])
-        ICON_COLOR=$NORD_WARNING
+        ICON_COLOR=$YELLOW
         LABEL_COLOR=$WHITE
         LABEL_PADDING=1
         ;;
     # 1-9 unread emails
     [1-9])
-        ICON_COLOR=$NORD_INFO
+        ICON_COLOR=$BLUE
         LABEL_COLOR=$WHITE
         LABEL_PADDING=1
         ;;
     # No unread emails
     0)
-        ICON_COLOR=$WHITE
+        ICON_COLOR=$GREEN
         LABEL_COLOR=$WHITE
         LABEL_PADDING=0
         ;;
     # Error case
     *)
-        ICON_COLOR=$NORD_DANGER
+        ICON_COLOR=$RED
         LABEL_COLOR=$WHITE
         COUNT="!"  # Show error indicator
         LABEL_PADDING=1

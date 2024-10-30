@@ -8,7 +8,7 @@ brew=(
   icon.color=$WHITE
   icon.padding_left=2
   icon.padding_right=5
-  icon.font="$FONT:Regular:16.0"
+  icon.font="$ICON_FONT:Regular:16.0"
   label=0
   label.padding_left=1
   label.padding_right=1
@@ -27,7 +27,7 @@ mail=(
   icon.color=$WHITE
   icon.padding_left=2
   icon.padding_right=5
-  icon.font="$FONT:Regular:16.0"
+  icon.font="$ICON_FONT:Regular:16.0"
   label=0
   label.padding_left=1
   label.padding_right=1
@@ -46,7 +46,7 @@ messages=(
   icon.color=$WHITE
   icon.padding_left=2
   icon.padding_right=5
-  icon.font="$FONT:Regular:16.0"
+  icon.font="$ICON_FONT:Regular:16.0"
   label=0
   label.padding_left=1
   label.padding_right=1
@@ -62,10 +62,10 @@ messages=(
 # Battery configuration
 BATTERY=(
   update_freq=120
-  icon.color=$NORD_PRIMARY
+  icon.color=$TEAL
   icon.padding_left=2
   icon.padding_right=5
-  icon.font="$FONT:Regular:16.0"
+  icon.font="$ICON_FONT:Regular:16.0"
   label.color=$WHITE
   label.padding_left=1
   label.padding_right=1
@@ -75,10 +75,10 @@ BATTERY=(
 
 # Sound configuration
 VOLUME=(
-  icon.color=$NORD_FROST_9
+  icon.color=$WHITE
   icon.padding_left=2
   icon.padding_right=5
-  icon.font="$FONT:Regular:16.0"
+  icon.font="$ICON_FONT:Regular:16.0"
   background.color=$TRANSPARENT
   label.padding_left=1
   label.padding_right=1
@@ -110,9 +110,7 @@ sketchybar --add bracket notifications brew mail messages \
                         background.corner_radius=5 \
                         background.height=25 \
                         background.padding_left=5 \
-                        background.padding_right=5 \
-                        background.border_color=$NORD_BORDER \
-                        background.border_width=1 
+                        background.padding_right=5
 
 sketchybar --add item battery right \
            --set battery "${BATTERY[@]}" \
@@ -127,6 +125,4 @@ sketchybar --add bracket notifications_batvol battery volume \
                         background.corner_radius=5 \
                         background.height=25 \
                         background.padding_left=5 \
-                        background.padding_right=5 \
-                        background.border_color=$NORD_BORDER \
-                        background.border_width=1
+                        background.padding_right=5

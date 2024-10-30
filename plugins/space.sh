@@ -32,16 +32,12 @@ update_space() {
     sketchybar --animate tanh 20 \
                --set space.$SID background.color=$ACTIVE_COLOR \
                                width=$ACTIVE_SPACE_WIDTH \
-                               background.corner_radius=$(( $SPACE_HEIGHT / 2 )) \
-                               background.border_color=$NORD_BORDER \
-                               background.border_width=1
+                               background.corner_radius=$(( $SPACE_HEIGHT / 2 ))
   else
     sketchybar --animate tanh 20 \
                --set space.$SID background.color=$INACTIVE_COLOR \
                                width=$SPACE_WIDTH \
-                               background.corner_radius=$(( $SPACE_HEIGHT / 2 )) \
-                               background.border_color=$NORD_BORDER \
-                               background.border_width=1
+                               background.corner_radius=$(( $SPACE_HEIGHT / 2 ))
   fi
   
   # Only update margin if not the last space

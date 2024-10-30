@@ -4,7 +4,7 @@
 FRONT_APP=(
   label.font="$FONT:SemiBold:12.0"
   icon.font="sketchybar-app-font:Regular:14.0"
-  icon.color=$NORD_INFO
+  icon.color=$PEACH
   label.color=$WHITE
   background.color=$NORD_BG1
   background.corner_radius=5
