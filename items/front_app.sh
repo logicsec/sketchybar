@@ -18,4 +18,4 @@ FRONT_APP=(
 # Add the front_app item
 sketchybar --add item front_app left \
            --set front_app "${FRONT_APP[@]}" \
-           --subscribe front_app front_app_switched
+           --subscribe front_app front_app_switched space_change
