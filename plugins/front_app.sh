@@ -58,7 +58,12 @@ toggle_app_menu() {
 
 # Function to handle the front app switch
 front_app_switched() {
+  # Get the space ID of the current focused app
+  space_id=$(yabai -m query --windows --window | jq -r '.space')
+  
+  # Update the front app's label, icon, and space
   sketchybar --set $NAME label="$INFO" icon="$($CONFIG_DIR/plugins/icon_map_fn.sh "$INFO")" \
+             space="$space_id" \
              --subscribe $NAME mouse.clicked
   update_app_menu
 }
