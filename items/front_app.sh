@@ -12,6 +12,7 @@ FRONT_APP=(
   background.padding_left=5
   background.padding_right=5
   padding_left=30
+  padding_right=-6
   script="$PLUGIN_DIR/front_app.sh"
 )
 

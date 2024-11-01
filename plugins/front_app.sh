@@ -36,12 +36,12 @@ update_app_menu() {
           icon.drawing=off \
           background.color=$TRANSPARENT \
           background.border_color=$NORD_BORDER \
-          background.border_width=1 \
-          background.corner_radius=5 \
+          background.border_width=0 \
+          background.corner_radius=1 \
           click_script="$MENUS_BINARY -s $((i + 1))" \
           space="$current_space_id" \
           script="if [[ \$SENDER == 'mouse.entered' ]]; then 
-                    sketchybar --set app_menu.$i background.color=$RED
+                    sketchybar --set app_menu.$i background.color=$NORD_BG2
                   elif [[ \$SENDER == 'mouse.exited' ]]; then 
                     sketchybar --set app_menu.$i background.color=$TRANSPARENT
                   fi" \
@@ -51,7 +51,7 @@ update_app_menu() {
 
     # Create the bracket with all items, associating it with the current space
     sketchybar --add bracket app_menu_bracket "${MENU_ITEMS[@]}" \
-      --set app_menu_bracket updates=on \
+      --set app_menu_bracket updates=on background.color=$NORD_BG1 background.corner_radius=5 \
       space="$current_space_id"
   fi
 }
