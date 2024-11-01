@@ -38,6 +38,7 @@ update_app_menu() {
           background.border_color=$NORD_BORDER \
           background.border_width=0 \
           background.corner_radius=5 \
+          padding_right=0 \
           click_script="$MENUS_BINARY -s $((i + 1))" \
           space="$current_space_id" \
           script="if [[ \$SENDER == 'mouse.entered' ]]; then 
