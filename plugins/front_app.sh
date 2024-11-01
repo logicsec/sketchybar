@@ -50,9 +50,15 @@ update_app_menu() {
       MENU_ITEMS+=("app_menu.$i")
     done
 
+    MENU_BAR=(
+      updates=on
+      background.color=$NORD_BG1
+      background.corner_radius=5
+    )
+
     # Create the bracket with all items, associating it with the current space
     sketchybar --add bracket app_menu_bracket "${MENU_ITEMS[@]}" \
-      --set app_menu_bracket updates=on background.color=$NORD_BG1 background.corner_radius=5 \
+      --set app_menu_bracket "${MENU_BAR[@]}" \
       space="$current_space_id"
   fi
 }
@@ -80,7 +86,7 @@ front_app_switched() {
   # Update the front app's label, icon, and space association using the focused app name
   sketchybar --set $NAME label="$focused_app_name" icon="$($CONFIG_DIR/plugins/icon_map_fn.sh "$focused_app_name")" \
              space="$space_id" \
-             --subscribe $NAME mouse.clicked
+             --subscribe $NAME mouse.clicked mouse.entered mouse.exited
              
   # Update the app menu to reflect the new space, ensuring it appears on the correct desktop
   update_app_menu
@@ -93,5 +99,11 @@ case "$SENDER" in
     ;;
   "front_app_switched" | "space_change")
     front_app_switched
+    ;;
+  "mouse.entered")
+    sketchybar --set $NAME background.color=$NORD_BG2
+    ;;
+  "mouse.exited")
+    sketchybar --set $NAME background.color=$NORD_BG1
     ;;
 esac
