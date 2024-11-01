@@ -39,7 +39,13 @@ update_app_menu() {
           background.border_width=1 \
           background.corner_radius=5 \
           click_script="$MENUS_BINARY -s $((i + 1))" \
-          space="$current_space_id"  # Associate the item with the current space
+          space="$current_space_id" \
+          script="if [[ \$SENDER == 'mouse.entered' ]]; then 
+                    sketchybar --set app_menu.$i background.color=$RED
+                  elif [[ \$SENDER == 'mouse.exited' ]]; then 
+                    sketchybar --set app_menu.$i background.color=$TRANSPARENT
+                  fi" \
+          --subscribe app_menu.$i mouse.entered mouse.exited
       MENU_ITEMS+=("app_menu.$i")
     done
 
