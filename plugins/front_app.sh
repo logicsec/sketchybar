@@ -57,9 +57,10 @@ update_app_menu() {
     )
 
     # Create the bracket with all items, associating it with the current space
-    sketchybar --add bracket app_menu_bracket "${MENU_ITEMS[@]}" \
-      --set app_menu_bracket "${MENU_BAR[@]}" \
-      space="$current_space_id"
+    sketchybar --animate elastic 15 \
+          --add bracket app_menu_bracket "${MENU_ITEMS[@]}" \
+          --set app_menu_bracket "${MENU_BAR[@]}" \
+          space="$current_space_id"
   fi
 }
 
@@ -84,7 +85,8 @@ front_app_switched() {
   focused_app_name=$(yabai -m query --windows --window | jq -r '.app')
 
   # Update the front app's label, icon, and space association using the focused app name
-  sketchybar --set $NAME label="$focused_app_name" icon="$($CONFIG_DIR/plugins/icon_map_fn.sh "$focused_app_name")" \
+  sketchybar --animate elastic 15 \
+  --set $NAME label="$focused_app_name" icon="$($CONFIG_DIR/plugins/icon_map_fn.sh "$focused_app_name")" \
              space="$space_id" \
              --subscribe $NAME mouse.clicked mouse.entered mouse.exited
              

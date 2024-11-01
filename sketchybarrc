@@ -75,7 +75,7 @@ source "$ITEM_DIR/notifications.sh"
 # Laptop Mode
 if ! is_single_display; then
   source "$ITEM_DIR/metrics.sh"
-  source "$ITEM_DIR/media.sh"
+  # source "$ITEM_DIR/media.sh"
 else
   echo "Single display detected"
 fi
