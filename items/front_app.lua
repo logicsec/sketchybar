@@ -9,19 +9,17 @@ end
 local space_id = sbar.exec("yabai -m query --windows --window | jq -r '.space'")
 
 local front_app = sbar.add("item", "front_app", {
-    -- bar = "left_bar",
     position = "left",
-    padding_right = 10,
+    padding_right = 0,
     background = {
         padding_right = 10,
         padding_left = 10,
-        corner_radius = 8,
         color = colors.bg1,
         border_width = 0,
         height = 25
     },
     label = {
-        drawing = true,
+        drawing = false,
         padding_left = 10,
         padding_right = 10,
         color = colors.quicksilver,
@@ -31,11 +29,12 @@ local front_app = sbar.add("item", "front_app", {
         },
     },
     icon = {
-        drawing = false,
+        drawing = true,
         padding_left = 10,
-        padding_right = 2,
+        padding_right = 10,
         font = "sketchybar-app-font:Regular:12.0",
-        string = getAppIcon("default")
+        string = getAppIcon("default"),
+        color = colors.orange
     },
     updates = true,
     space = space_id,
@@ -48,11 +47,10 @@ front_app:subscribe("mouse.entered", function(env)
             background = {
                 padding_right = 10,
                 padding_left = 10,
-                corner_radius = 8,
                 color = colors.bg2,
             },
             label = {
-                -- drawing = false,
+                drawing = false,
                 padding_left = 10,
                 padding_right = 10,
 
@@ -72,11 +70,11 @@ front_app:subscribe("front_app_switched", function(env)
         local space_id = sbar.exec("yabai -m query --windows --window | jq -r '.space'", function(space_id, exit_code)
             front_app:set({
                 label = {
-                    drawing = true,
+                    drawing = false,
                     string = env.INFO
                 },
                 icon = {
-                    drawing = false,
+                    drawing = true,
                     font = "sketchybar-app-font:Regular:12.0",
                     string = getAppIcon(env.INFO)
                 },
@@ -96,7 +94,7 @@ front_app:subscribe("mouse.exited", function(env)
                 color = colors.bg1,
             },
             label = {
-                drawing = true,
+                drawing = false,
                 padding_left = 10,
                 padding_right = 10,
                 color = colors.quicksilver,
@@ -110,26 +108,19 @@ front_app:subscribe("mouse.exited", function(env)
     end)
 end)
 
-
 front_app:subscribe("mouse.clicked", function(env)
+    -- Trigger and animate actions
     sbar.trigger("swap_menus_and_spaces")
     sbar.animate("elastic", 10, function()
         sbar.exec("yabai -m query --windows --window | jq -r '.space'", function(space_id, exit_code)
             front_app:set({
                 position = "left",
                 background = {
-
                     color = colors.bg1,
                 },
                 label = {
-                    drawing = true,
-                    color = colors.pastel,
-
-                },
-                icon = {
                     drawing = false,
-                    font = "sketchybar-app-font:Regular:12.0",
-                    string = getAppIcon(env.INFO)
+                    color = colors.pastel,
                 },
                 updates = true,
                 space = space_id,

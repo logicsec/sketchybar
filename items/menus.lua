@@ -61,13 +61,19 @@ local function update_menus(space_id)
       if id == 1 then
         menu_items[id]:set({
           icon = {
-            drawing = true,
+            drawing = false,
             padding_left = 10,
             font = "sketchybar-app-font:Regular:12.0",
             string = getAppIcon(menu)
           },
           label = {
-            drawing = false
+            drawing = true,
+            string = menu,
+            color = colors.white,
+            font = {
+              style = settings.font.style_map["Bold"],
+              size = 12.0,
+          },
           },
           drawing = true,
           space = space_id,
@@ -76,7 +82,14 @@ local function update_menus(space_id)
         label = menu
         if id <= max_items then
           menu_items[id]:set({
-            label = label,
+            label = {
+              string = label,
+              color = colors.quicksilver,
+              font = {
+                  style = settings.font.style_map["SemiBold"],
+                  size = 12.0,
+              }
+            },
             drawing = true,
             space = space_id,
           })

@@ -10,27 +10,18 @@ for i = 1, 10, 1 do
     space = i,
     icon = {
       drawing = false,
-      font = { family = settings.font.numbers },
-      string = i,
-      padding_left = 15,
-      padding_right = 8,
-      color = colors.white,
-      highlight_color = colors.red,
     },
     label = {
-      drawing = off,
-      padding_right = 20,
+      padding_left = 2,
+      padding_right = 0,
       color = colors.grey,
       highlight_color = colors.white,
-      font = "sketchybar-app-font:Regular:16.0",
-      y_offset = -1,
     },
     padding_right = 1,
     padding_left = 1,
     background = {
       color = colors.spaces.inactive,
       border_width = 0,
-      height = 11,
       border_color = colors.black,
     },
     popup = { background = { border_width = 0, border_color = colors.black } }
@@ -43,7 +34,6 @@ for i = 1, 10, 1 do
     background = {
       color = colors.transparent,
       border_color = colors.bg2,
-      height = 28,
       border_width = 0
     }
   })
@@ -57,8 +47,8 @@ for i = 1, 10, 1 do
 
   local space_popup = sbar.add("item", {
     position = "popup." .. space.name,
-    padding_left= 5,
-    padding_right= 0,
+    padding_left = 5,
+    padding_right = 0,
     background = {
       drawing = true,
       image = {
@@ -74,9 +64,10 @@ for i = 1, 10, 1 do
       icon = { highlight = selected },
       label = { highlight = selected },
       background = { 
-        color = selected and colors.spaces.active or colors.spaces.inactive,  -- Set selected color to colors.red
+        color = selected and colors.spaces.active or colors.spaces.inactive,
         border_color = selected and colors.red or colors.black
-      }
+      },
+      width = selected and 30 or 30
     })
     space_bracket:set({
       background = { color = colors.transparent, border_color = selected and colors.red or colors.bg2 }
@@ -93,12 +84,16 @@ for i = 1, 10, 1 do
     end
   end)
 
+  space:subscribe("mouse.entered", function(env)
+    space_popup:set({ background = { image = "space." .. env.SID } })
+    space:set({ popup = { drawing = "toggle" } })
+  end)
+  
   space:subscribe("mouse.exited", function(_)
     space:set({ popup = { drawing = false } })
   end)
+
 end
-
-
 
 local space_window_observer = sbar.add("item", {
   drawing = false,
