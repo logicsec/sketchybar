@@ -108,7 +108,6 @@ menu_watcher:subscribe("front_app_switched", function()
   sbar.exec("yabai -m query --windows --window | jq -r '.space'", function(space_id, exit_code)
     update_menus(space_id)
     sbar.set("/menu\\..*/", { drawing = false })  -- Clear previous menu state
-    -- sbar.set("/space\\..*/", { drawing = false })  -- Ensure previous space menus are hidden
     sbar.set("/menu\\..*/", { drawing = true })  -- Show menus for the new space
   end)
 end)
@@ -117,11 +116,9 @@ space_menu_swap:subscribe("swap_menus_and_spaces", function(env)
   local drawing = menu_items[1]:query().geometry.drawing == "on"
   if drawing then
     menu_watcher:set({ updates = false })
-    sbar.set("/menu\\..*/", { drawing = false })  -- Hide menus
-    -- sbar.set("/space\\..*/", { drawing = true })   -- Show space items
+    sbar.set("/menu\\..*/", { drawing = false })
   else
     menu_watcher:set({ updates = true })
-    -- sbar.set("/space\\..*/", { drawing = false })  -- Hide space items
     sbar.exec("yabai -m query --windows --window | jq -r '.space'", function(space_id, exit_code)
       update_menus(space_id)  -- Update menus based on the active space
       sbar.set("/menu\\..*/", { drawing = true })  -- Show updated menus
