@@ -53,60 +53,84 @@ local media_title = sbar.add("item", {
 
 local interrupt = 0
 local function animate_detail(detail)
-  if (not detail) then interrupt = interrupt - 1 end
-  if interrupt > 0 and (not detail) then return end
+    -- Don't show details if player is visible
+    if player_visible then return end
+    
+    if (not detail) then interrupt = interrupt - 1 end
+    if interrupt > 0 and (not detail) then return end
 
-  sbar.animate("tanh", 30, function()
-    media_artist:set({ label = { width = detail and "dynamic" or 0 } })
-    media_title:set({ label = { width = detail and "dynamic" or 0 } })
-  end)
+    sbar.animate("tanh", 30, function()
+        media_artist:set({ label = { width = detail and "dynamic" or 0 } })
+        media_title:set({ label = { width = detail and "dynamic" or 0 } })
+    end)
 end
 
 media_cover:subscribe("media_change", function(env)
-  if whitelist[env.INFO.app] then
-    local drawing = (env.INFO.artist ~= "" or env.INFO.title ~= "")
-    media_artist:set({ drawing = drawing, label = env.INFO.artist, })
-    media_title:set({ drawing = drawing, label = env.INFO.title, })
-    media_cover:set({ 
-      drawing = drawing,
-      background = {
-        image = {
-          string = "media.artwork",
-          scale = 0.75
-        }
-      }
-    })
+    if whitelist[env.INFO.app] then
+        local drawing = (env.INFO.artist ~= "" or env.INFO.title ~= "")
+        media_artist:set({ drawing = drawing, label = env.INFO.artist, })
+        media_title:set({ drawing = drawing, label = env.INFO.title, })
+        media_cover:set({ 
+            drawing = drawing,
+            background = {
+                image = {
+                    string = "media.artwork",
+                    scale = 0.75
+                }
+            }
+        })
 
-    if drawing then
-      animate_detail(true)
-      interrupt = interrupt + 1
-      sbar.delay(5, animate_detail)
+        -- Only show details if player isn't visible
+        if drawing and not player_visible then
+            animate_detail(true)
+            interrupt = interrupt + 1
+            sbar.delay(5, animate_detail)
+        end
     end
-  end
 end)
 
+local player_visible = false
+
+-- Add a function to handle player visibility
+local function show_player()
+    if not player_visible then
+        sbar.exec("~/.config/sketchybar/helpers/event_providers/media_player/bin/media_player")
+        player_visible = true
+    end
+end
+
+local function hide_player()
+    if player_visible then
+        sbar.exec("pkill -SIGUSR1 media_player")
+        player_visible = false
+    end
+end
+
 media_cover:subscribe("mouse.entered", function(env)
-  interrupt = interrupt + 1
-  animate_detail(true)
+    interrupt = interrupt + 1
+    animate_detail(true)
+    show_player()
 end)
 
 media_cover:subscribe("mouse.exited", function(env)
-  animate_detail(false)
+    animate_detail(false)
 end)
 
--- Toggle media player on click
-local player_visible = false
+-- Keep click handler for closing
 media_cover:subscribe("mouse.clicked", function(env)
-  if player_visible then
-    sbar.exec("pkill media_player")
-    player_visible = false
-  else
-    sbar.exec("~/.config/sketchybar/helpers/event_providers/media_player/bin/media_player")
-    player_visible = true
-  end
+    if player_visible then
+        hide_player()
+    else
+        show_player()
+    end
 end)
 
 -- Add this to prevent window from closing when clicking inside it
 media_cover:subscribe("mouse.clicked.inside", function(env)
-  return
+    return
+end)
+
+-- Add this to track when the player closes itself
+media_cover:subscribe("mouse.exited.global", function(env)
+    player_visible = false
 end)

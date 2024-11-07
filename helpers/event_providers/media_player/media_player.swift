@@ -1,6 +1,7 @@
 import Cocoa
 import SwiftUI
 import MediaPlayer
+import Darwin
 
 // Private API declarations
 private let MRMediaRemoteGetNowPlayingInfoPointer = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "MRMediaRemoteGetNowPlayingInfo")
@@ -64,6 +65,9 @@ let MPNowPlayingInfoPropertyPlaybackRate = "MPNowPlayingInfoPropertyPlaybackRate
 let MPNowPlayingInfoPropertyDefaultPlaybackRate = "MPNowPlayingInfoPropertyDefaultPlaybackRate"
 let MPNowPlayingInfoPropertyPlaybackDuration = "MPNowPlayingInfoPropertyPlaybackDuration"
 
+// Add at the start of the file after imports
+let lockFilePath = "/tmp/sketchybar_media_player.lock"
+
 class MediaController: ObservableObject {
     @Published var title: String = ""
     @Published var artist: String = ""
@@ -74,6 +78,7 @@ class MediaController: ObservableObject {
     @Published var progress: Double = 0
     
     private var progressTimer: Timer?
+    internal var autoCloseTimer: Timer?
     
     init() {
         MRMediaRemoteRegisterForNowPlayingNotifications(DispatchQueue.main)
@@ -118,6 +123,22 @@ class MediaController: ObservableObject {
         }
         
         updateNowPlaying()
+        
+        // Start auto-close timer
+        startAutoCloseTimer()
+    }
+    
+    internal func startAutoCloseTimer() {
+        autoCloseTimer?.invalidate()
+        autoCloseTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: false) { _ in
+            DispatchQueue.main.async {
+                NSApplication.shared.terminate(nil)
+            }
+        }
+    }
+    
+    internal func resetAutoCloseTimer() {
+        startAutoCloseTimer()
     }
     
     @objc func handlePlayingChange(_ notification: Notification) {
@@ -190,21 +211,19 @@ class MediaController: ObservableObject {
     }
     
     func togglePlayPause() {
-        // Skip if current app is Music
-        if currentApp == "Music" {
-            return
-        }
-        
-        if isPlaying {
-            if MRMediaRemoteSendCommand(kMRPause, nil) {
-                isPlaying = false
-                updateNowPlaying()
+        if currentApp != "Music" {
+            if isPlaying {
+                if MRMediaRemoteSendCommand(kMRPause, nil) {
+                    isPlaying = false
+                    updateNowPlaying()
+                }
+            } else {
+                if MRMediaRemoteSendCommand(kMRPlay, nil) {
+                    isPlaying = true
+                    updateNowPlaying()
+                }
             }
-        } else {
-            if MRMediaRemoteSendCommand(kMRPlay, nil) {
-                isPlaying = true
-                updateNowPlaying()
-            }
+            resetAutoCloseTimer()
         }
     }
     
@@ -213,6 +232,7 @@ class MediaController: ObservableObject {
             if MRMediaRemoteSendCommand(kMRNextTrack, nil) {
                 updateNowPlaying()
             }
+            resetAutoCloseTimer()
         }
     }
     
@@ -221,6 +241,7 @@ class MediaController: ObservableObject {
             if MRMediaRemoteSendCommand(kMRPreviousTrack, nil) {
                 updateNowPlaying()
             }
+            resetAutoCloseTimer()
         }
     }
     
@@ -251,6 +272,15 @@ class MediaController: ObservableObject {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     self.updateNowPlaying()
                 }
+            }
+            resetAutoCloseTimer()
+        }
+    }
+    
+    func close() {
+        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+            appDelegate.animateWindowClose {
+                NSApplication.shared.terminate(nil)
             }
         }
     }
@@ -298,8 +328,60 @@ struct DraggableProgressBar: View {
     }
 }
 
+class MouseTrackingView: NSView {
+    var onMouseEntered: (() -> Void)?
+    var onMouseExited: (() -> Void)?
+    private var trackingArea: NSTrackingArea?
+    
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        
+        if let existingTrackingArea = trackingArea {
+            removeTrackingArea(existingTrackingArea)
+        }
+        
+        let options: NSTrackingArea.Options = [.mouseEnteredAndExited, .activeAlways]
+        trackingArea = NSTrackingArea(rect: bounds, options: options, owner: self, userInfo: nil)
+        
+        if let trackingArea = trackingArea {
+            addTrackingArea(trackingArea)
+        }
+    }
+    
+    override func mouseEntered(with event: NSEvent) {
+        onMouseEntered?()
+    }
+    
+    override func mouseExited(with event: NSEvent) {
+        onMouseExited?()
+    }
+}
+
+struct MouseTrackingViewRepresentable: NSViewRepresentable {
+    let onMouseEntered: () -> Void
+    let onMouseExited: () -> Void
+    
+    func makeNSView(context: Context) -> MouseTrackingView {
+        let view = MouseTrackingView()
+        view.onMouseEntered = onMouseEntered
+        view.onMouseExited = onMouseExited
+        return view
+    }
+    
+    func updateNSView(_ nsView: MouseTrackingView, context: Context) {}
+}
+
 struct ContentView: View {
     @StateObject private var mediaController = MediaController()
+    @State private var isMouseInside = false
+    
+    var appIcon: NSImage? {
+        if let bundleId = Bundle().bundleIdentifier(forAppNamed: mediaController.currentApp),
+           let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
+            return NSWorkspace.shared.icon(forFile: appURL.path)
+        }
+        return nil
+    }
     
     var body: some View {
         ZStack {
@@ -326,13 +408,31 @@ struct ContentView: View {
             }
             
             VStack(alignment: .leading, spacing: 16) {
-                // Top row with waveform icon
+                // Top row with app icon
                 HStack {
-                    Image(systemName: "waveform")
-                        .foregroundColor(.white)
-                        .font(.system(size: 12))
-                        .symbolEffect(.bounce, options: .repeating, value: mediaController.isPlaying)
-                        .opacity(mediaController.isPlaying ? 1.0 : 0.5)
+                    if let icon = appIcon {
+                        Button(action: {
+                            if let bundleId = Bundle().bundleIdentifier(forAppNamed: mediaController.currentApp),
+                               let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
+                                NSWorkspace.shared.openApplication(
+                                    at: appURL,
+                                    configuration: NSWorkspace.OpenConfiguration()
+                                ) { _, error in
+                                    if let error = error {
+                                        print("Failed to open app:", error)
+                                    }
+                                }
+                            }
+                        }) {
+                            Image(nsImage: icon)
+                                .resizable()
+                                .frame(width: 24, height: 24)
+                                .cornerRadius(6)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Open \(mediaController.currentApp)")
+                    }
+                    
                     Spacer()
                 }
                 .padding(.horizontal)
@@ -390,6 +490,19 @@ struct ContentView: View {
                 .padding(.horizontal)  // Match the title section padding
                 .padding(.bottom, 12)
             }
+            
+            // Add mouse tracking view
+            MouseTrackingViewRepresentable(
+                onMouseEntered: {
+                    isMouseInside = true
+                    mediaController.autoCloseTimer?.invalidate()
+                },
+                onMouseExited: {
+                    isMouseInside = false
+                    mediaController.startAutoCloseTimer()
+                }
+            )
+            .allowsHitTesting(false)  // Allow clicks to pass through
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .cornerRadius(12)
@@ -416,6 +529,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Check if another instance is running
+        if FileManager.default.fileExists(atPath: lockFilePath) {
+            // Another instance exists, exit
+            NSApplication.shared.terminate(nil)
+            return
+        }
+        
+        // Create lock file
+        FileManager.default.createFile(atPath: lockFilePath, contents: nil)
+        
+        // Add signal handler
+        signal(SIGUSR1, { signal in
+            if let delegate = NSApplication.shared.delegate as? AppDelegate {
+                DispatchQueue.main.async {
+                    delegate.handleGracefulClose()
+                }
+            }
+        })
+        
         let contentView = ContentView()
         
         // Get focused display position from yabai
@@ -495,13 +627,88 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             
             // Also set the background color on the layer for proper transparency
             contentView.layer?.backgroundColor = NSColor.clear.cgColor
+            
+            // Set initial state for animation
+            contentView.layer?.opacity = 0.0
+            contentView.layer?.transform = CATransform3DMakeScale(0.8, 0.8, 1.0)
         }
         
         window?.makeKeyAndOrderFront(nil)
+        
+        // Animate in
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.2
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            
+            window?.contentView?.layer?.animate(
+                keyPath: "transform.scale",
+                from: 0.8,
+                to: 1.0,
+                duration: context.duration
+            )
+            
+            window?.contentView?.layer?.animate(
+                keyPath: "opacity",
+                from: 0.0,
+                to: 1.0,
+                duration: context.duration
+            )
+        }
+    }
+    
+    func handleGracefulClose() {
+        animateWindowClose {
+            NSApplication.shared.terminate(nil)
+        }
+    }
+    
+    func animateWindowClose(completion: @escaping () -> Void) {
+        guard let contentView = window?.contentView else {
+            completion()
+            return
+        }
+        
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.2
+            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            
+            contentView.layer?.animate(
+                keyPath: "transform.scale",
+                from: 1.0,
+                to: 0.8,
+                duration: context.duration
+            )
+            
+            contentView.layer?.animate(
+                keyPath: "opacity",
+                from: 1.0,
+                to: 0.0,
+                duration: context.duration
+            )
+        }, completionHandler: completion)
+    }
+    
+    func applicationWillTerminate(_ notification: Notification) {
+        // Remove lock file when app closes
+        try? FileManager.default.removeItem(atPath: lockFilePath)
+    }
+}
+
+// Add this extension for layer animations
+extension CALayer {
+    func animate(keyPath: String, from: CGFloat, to: CGFloat, duration: CGFloat) {
+        let animation = CABasicAnimation(keyPath: keyPath)
+        animation.fromValue = from
+        animation.toValue = to
+        animation.duration = duration
+        animation.fillMode = .forwards
+        animation.isRemovedOnCompletion = false
+        add(animation, forKey: keyPath)
     }
 }
 
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate
+app.run()
 app.run()
