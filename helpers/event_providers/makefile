@@ -4,3 +4,4 @@ all:
 	(cd hdd_load && $(MAKE))
 	(cd weather_info && $(MAKE))
 	(cd network_load && $(MAKE))
+	(cd media_player && $(MAKE))
