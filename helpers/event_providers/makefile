@@ -5,3 +5,4 @@ all:
 	(cd weather_info && $(MAKE))
 	(cd network_load && $(MAKE))
 	(cd media_player && $(MAKE))
+	(cd apple_menu && $(MAKE))

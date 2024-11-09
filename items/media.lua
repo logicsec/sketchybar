@@ -6,7 +6,7 @@ local whitelist = {
   ["Brave Browser"] = true,    
 }
 
-local media_cover = sbar.add("item", {
+local media_cover = sbar.add("item", "media.cover", {
   position = "right",
   background = {
     image = {
@@ -19,6 +19,7 @@ local media_cover = sbar.add("item", {
   icon = { drawing = false },
   drawing = false,
   updates = true,
+  name = "media.cover",
 })
 
 local media_artist = sbar.add("item", {

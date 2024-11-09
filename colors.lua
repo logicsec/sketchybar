@@ -12,18 +12,19 @@ return {
   transparent = 0x00000000,
 
   bar = {
-    bg = 0xF2232634,
+    bg = 0xFF0D1116,
     border = 0xff2c2e34,
   },
   popup = {
-    bg = 0xc02c2e34,
-    border = 0xff7f8490
+    bg = 0xF2232634,
+    border = 0xff7f8490,
+    card = 0xff232634,
   },
   spaces = {
     active = 0xff414559,
     inactive = 0xff303446
   },
-  bg1 = 0xff303446,
+  bg1 = 0xff1B2128,
   bg2 = 0xff414559,
 
   with_alpha = function(color, alpha)

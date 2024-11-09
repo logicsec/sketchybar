@@ -393,12 +393,12 @@ struct ContentView: View {
                         .aspectRatio(contentMode: .fill)
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .clipped()
-                        .blur(radius: 2)
+                        .blur(radius: 20)
                         .overlay {
                             LinearGradient(
                                 colors: [
-                                    .black.opacity(0.4),
-                                    .black.opacity(0.2)
+                                    .black.opacity(0.6),
+                                    .black.opacity(0.3)
                                 ],
                                 startPoint: .bottom,
                                 endPoint: .top
@@ -436,9 +436,9 @@ struct ContentView: View {
                     Spacer()
                 }
                 .padding(.horizontal)
-                .padding(.top, 16)
+                .padding(.top, 30)
                 
-                // Media info and play/pause on the right
+                // Media info section (without play button)
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(mediaController.title)
@@ -448,9 +448,30 @@ struct ContentView: View {
                         
                         Text(mediaController.artist)
                             .foregroundColor(.white.opacity(0.7))
-                            .font(.system(size: 10))
+                            .font(.system(size: 9))
                             .lineLimit(1)
                     }
+                    Spacer()
+                }
+                .padding(.horizontal)
+                
+                // Progress bar
+                GeometryReader { geometry in
+                    DraggableProgressBar(mediaController: mediaController, geometry: geometry)
+                }
+                .frame(height: 8)
+                .padding(.horizontal)
+                
+                // Controls at the bottom
+                HStack {
+                    Spacer()
+                    
+                    Button(action: { mediaController.previous() }) {
+                        Image(systemName: "backward.end")
+                            .foregroundColor(.white)
+                            .font(.system(size: 11))
+                    }
+                    .buttonStyle(.plain)
                     
                     Spacer()
                     
@@ -460,24 +481,8 @@ struct ContentView: View {
                             .font(.system(size: 24))
                     }
                     .buttonStyle(.plain)
-                }
-                .padding(.horizontal)
-                
-                // Previous/Next controls at the bottom
-                HStack {
-                    Button(action: { mediaController.previous() }) {
-                        Image(systemName: "backward.end")
-                            .foregroundColor(.white)
-                            .font(.system(size: 11))
-                    }
-                    .buttonStyle(.plain)
                     
-                    // Progress bar with adjusted padding
-                    GeometryReader { geometry in
-                        DraggableProgressBar(mediaController: mediaController, geometry: geometry)
-                    }
-                    .frame(height: 8)
-                    .padding(.horizontal, 0)  // Removed horizontal padding
+                    Spacer()
                     
                     Button(action: { mediaController.next() }) {
                         Image(systemName: "forward.end")
@@ -485,10 +490,12 @@ struct ContentView: View {
                             .font(.system(size: 11))
                     }
                     .buttonStyle(.plain)
+                    
+                    Spacer()
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal)  // Match the title section padding
-                .padding(.bottom, 12)
+                .padding(.horizontal)
+                .padding(.bottom, 30)
+                .padding(.top, 8)
             }
             
             // Add mouse tracking view
@@ -565,7 +572,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Get item position from SketchyBar
         let sketchyTask = Process()
         sketchyTask.launchPath = "/usr/bin/env"
-        sketchyTask.arguments = ["sketchybar", "--query", "item_35"]
+        sketchyTask.arguments = ["sketchybar", "--query", "media.cover"]
         
         let sketchyPipe = Pipe()
         sketchyTask.standardOutput = sketchyPipe
@@ -586,7 +593,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let x = origin[0]
             let displayWidth = frame["w"] ?? 0
             let displayX = frame["x"] ?? 0
-            let windowWidth: CGFloat = 320
+            let windowWidth: CGFloat = 300
             
             var windowX = x - (windowWidth / 8)
             
@@ -602,9 +609,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             window = NSWindow(
                 contentRect: NSRect(
                     x: windowX,
-                    y: 1305,
+                    y: 1290,
                     width: windowWidth,
-                    height: 80
+                    height: 100
                 ),
                 styleMask: [.borderless],
                 backing: .buffered,
