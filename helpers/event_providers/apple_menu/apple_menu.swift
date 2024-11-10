@@ -3,6 +3,7 @@ import SwiftUI
 import MediaPlayer
 import IOKit.ps
 import CoreAudio
+import Foundation
 
 // Replace the existing MediaRemote declarations with this approach
 let bundle = CFBundleCreate(kCFAllocatorDefault, NSURL(fileURLWithPath: "/System/Library/PrivateFrameworks/MediaRemote.framework"))
@@ -408,24 +409,52 @@ struct CircularProgressView: View {
     }
 }
 
-// Update Card struct to accept padding override
+// Update Card struct to handle EdgeInsets
 struct Card: View {
     let content: AnyView
     let backgroundColor: Color
-    let padding: CGFloat
+    let padding: EdgeInsets
+    let backgroundImage: NSImage?
+    let gradientOpacity: Double  // Added parameter for gradient opacity
     
-    init(content: AnyView, backgroundColor: Color? = nil, padding: CGFloat = 8) {
+    init(content: AnyView, backgroundColor: Color, padding: EdgeInsets, backgroundImage: NSImage?, gradientOpacity: Double = 0.8) {
         self.content = content
-        self.backgroundColor = backgroundColor ?? Color(Colors.cardBackground)
+        self.backgroundColor = backgroundColor
         self.padding = padding
+        self.backgroundImage = backgroundImage
+        self.gradientOpacity = gradientOpacity
     }
     
     var body: some View {
-        content
-            .padding(padding)
-            .frame(maxWidth: .infinity)
-            .background(backgroundColor)
-            .cornerRadius(12)
+        ZStack {
+            if let image = backgroundImage {
+                GeometryReader { geometry in
+                    Image(nsImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: geometry.size.width * 1.5, height: geometry.size.height)
+                        .position(x: geometry.size.width * 0.25, y: geometry.size.height / 2)
+                        .clipped()
+                        .overlay(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color.black.opacity(gradientOpacity),
+                                    Color.black.opacity(gradientOpacity * 0.8),
+                                    Color.black.opacity(gradientOpacity * 0.6)
+                                ]),
+                                startPoint: .bottom,
+                                endPoint: .top
+                            )
+                        )
+                }
+            }
+            
+            content
+                .padding(padding)
+                .frame(maxWidth: .infinity)
+        }
+        .background(backgroundImage == nil ? backgroundColor : Color.clear)
+        .cornerRadius(12)
     }
 }
 
@@ -449,6 +478,7 @@ extension Bundle {
 struct ContentView: View {
     @StateObject private var statsController = StatsController()
     @StateObject private var mediaController = MediaController()
+    @StateObject private var weatherController = WeatherController()
     @State private var isMouseInside = false
     @State private var uptime: String = getUptime()
     let username: String = NSFullUserName()
@@ -498,39 +528,36 @@ struct ContentView: View {
         .padding(.top, 5)
     }
     
-    var body: some View {
-        ZStack {
-            Color(Colors.panelBackground)
-            
-            VStack(spacing: 16) {
-                profileSection
-                
-                // Media player card
-                Card(content: AnyView(
+    private var mediaPlayerSection: some View {
+        Card(
+            content: AnyView(
+                ZStack {
+                    // Blurred background artwork
+                    if let artwork = mediaController.artwork {
+                        Image(nsImage: artwork)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(maxWidth: .infinity)
+                            .blur(radius: 10)
+                            .opacity(0.3)
+                    }
+                    
+                    // Content
                     HStack(spacing: 12) {
                         // Album artwork
                         if let artwork = mediaController.artwork {
                             Image(nsImage: artwork)
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
-                                .frame(width: 60, height: 60)
-                                .cornerRadius(8)
-                        } else {
-                            Rectangle()
-                                .fill(Color(Colors.graphBackground))
-                                .frame(width: 60, height: 60)
-                                .cornerRadius(8)
-                                .overlay(
-                                    Image(systemName: "music.note")
-                                        .foregroundColor(.white.opacity(0.5))
-                                )
+                                .frame(width: 82, height: 82)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
                         }
                         
                         // Title and artist
                         VStack(alignment: .leading, spacing: 4) {
                             Text(mediaController.title)
                                 .foregroundColor(.white)
-                                .font(.system(size: 14, weight: .semibold))
+                                .font(.system(size: 14, weight: .medium))
                                 .lineLimit(1)
                             
                             Text(mediaController.artist)
@@ -542,88 +569,188 @@ struct ContentView: View {
                         Spacer()
                         
                         // Media controls
-                        HStack(spacing: 16) {
-                            Button(action: { mediaController.previous() }) {
-                                Image(systemName: "backward.end.fill")
-                                    .foregroundColor(.white)
-                                    .font(.system(size: 16))
+                        HStack(spacing: 20) {
+                            MediaControlButton(systemName: "backward.end.fill") {
+                                mediaController.previous()
                             }
-                            .buttonStyle(.plain)
-                            .onHover { inside in
-                                if inside {
-                                    NSCursor.pointingHand.push()
-                                } else {
-                                    NSCursor.pop()
-                                }
+                            MediaControlButton(systemName: mediaController.isPlaying ? "pause.fill" : "play.fill") {
+                                mediaController.togglePlayPause()
                             }
-                            
-                            Button(action: { mediaController.togglePlayPause() }) {
-                                Image(systemName: mediaController.isPlaying ? "pause.fill" : "play.fill")
-                                    .foregroundColor(.white)
-                                    .font(.system(size: 16))
-                            }
-                            .buttonStyle(.plain)
-                            .onHover { inside in
-                                if inside {
-                                    NSCursor.pointingHand.push()
-                                } else {
-                                    NSCursor.pop()
-                                }
-                            }
-                            
-                            Button(action: { mediaController.next() }) {
-                                Image(systemName: "forward.end.fill")
-                                    .foregroundColor(.white)
-                                    .font(.system(size: 16))
-                            }
-                            .buttonStyle(.plain)
-                            .onHover { inside in
-                                if inside {
-                                    NSCursor.pointingHand.push()
-                                } else {
-                                    NSCursor.pop()
-                                }
+                            MediaControlButton(systemName: "forward.end.fill") {
+                                mediaController.next()
                             }
                         }
                     }
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 5)
-                ), backgroundColor: Color(Colors.cardBackground))
-                .padding(.horizontal, 30)
-                .padding(.bottom, 10)
+                }
+                .frame(height: 110) // Increased height
+            ),
+            backgroundColor: Color(Colors.cardBackground),
+            padding: EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0),
+            backgroundImage: nil
+        )
+        .padding(.horizontal, 30)
+    }
+
+    // Add this new struct for the calendar
+    struct CalendarView: View {
+        private let calendar = Calendar.current
+        private let date = Date()
+        private let weekDays = ["S", "M", "T", "W", "T", "F", "S"]
+        
+        var body: some View {
+            GeometryReader { geometry in
+                let spacing = (geometry.size.width - 30 - (20 * 7)) / 6 // Calculate dynamic spacing
                 
-                // Stats grid
+                VStack(spacing: 12) {
+                    // Month and Year
+                    Text(date.formatted(.dateTime.month(.wide).year()))
+                        .foregroundColor(.white)
+                        .font(.system(size: 14, weight: .semibold))
+                    
+                    // Week days
+                    HStack(spacing: spacing) {
+                        ForEach(weekDays, id: \.self) { day in
+                            Text(day)
+                                .font(.system(size: 12))
+                                .foregroundColor(day == "S" ? Color(hex: "#ed8796") ?? .red : .white.opacity(0.7))
+                                .frame(width: 20)
+                        }
+                    }
+                    
+                    // Calendar grid
+                    let days = generateDaysInMonth()
+                    VStack(spacing: 8) {
+                        ForEach(0..<6) { row in
+                            HStack(spacing: spacing) {
+                                ForEach(0..<7) { column in
+                                    let index = row * 7 + column
+                                    if index < days.count {
+                                        let day = days[index]
+                                        Text(day.number)
+                                            .font(.system(size: 12))
+                                            .foregroundColor(day.isCurrentMonth ? 
+                                                (day.isToday ? .white : .white.opacity(0.7)) : 
+                                                .white.opacity(0.3))
+                                            .frame(width: 20)
+                                            .fontWeight(day.isToday ? .bold : .regular)
+                                    } else {
+                                        Text("")
+                                            .frame(width: 20)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(.vertical, 16)
+                .padding(.horizontal, 15) // Add horizontal padding
+                .frame(maxWidth: .infinity) // Make the VStack full width
+            }
+            .frame(height: 220) // Set a fixed height for the calendar
+        }
+        
+        private struct DayItem {
+            let number: String
+            let isCurrentMonth: Bool
+            let isToday: Bool
+        }
+        
+        private func generateDaysInMonth() -> [DayItem] {
+            var days: [DayItem] = []
+            
+            // Get the first day of the month
+            let firstDayOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: date))!
+            
+            // Get the weekday of the first day (0 = Sunday)
+            let firstWeekday = calendar.component(.weekday, from: firstDayOfMonth) - 1
+            
+            // Add days from previous month
+            let previousMonth = calendar.date(byAdding: .month, value: -1, to: firstDayOfMonth)!
+            let daysInPreviousMonth = calendar.range(of: .day, in: .month, for: previousMonth)!.count
+            for day in (daysInPreviousMonth - firstWeekday + 1)...daysInPreviousMonth {
+                days.append(DayItem(number: "\(day)", isCurrentMonth: false, isToday: false))
+            }
+            
+            // Add days from current month
+            let daysInMonth = calendar.range(of: .day, in: .month, for: firstDayOfMonth)!.count
+            let currentDay = calendar.component(.day, from: date)
+            for day in 1...daysInMonth {
+                days.append(DayItem(number: "\(day)", isCurrentMonth: true, isToday: day == currentDay))
+            }
+            
+            // Add days from next month
+            let remainingDays = 42 - days.count // 6 rows * 7 days = 42
+            for day in 1...remainingDays {
+                days.append(DayItem(number: "\(day)", isCurrentMonth: false, isToday: false))
+            }
+            
+            return days
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            Color(Colors.panelBackground)
+            
+            VStack(spacing: 16) {
+                profileSection
+                mediaPlayerSection
+                
+                Card(
+                    content: AnyView(CalendarView()),
+                    backgroundColor: Color(Colors.cardBackground),
+                    padding: EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0),
+                    backgroundImage: nil
+                )
+                .padding(.horizontal, 30)
+                
                 LazyVGrid(columns: [
-                    GridItem(.flexible(), spacing: -10),  // Reduced spacing between items
+                    GridItem(.flexible(), spacing: -10),
                     GridItem(.flexible(), spacing: -10),
                     GridItem(.flexible(), spacing: -10),
                     GridItem(.flexible(), spacing: -10)
-                ], spacing: -10) {  // Reduced spacing between rows
+                ], spacing: -10) {
                     CircularProgressView(
                         progress: statsController.batteryLevel,
                         icon: statsController.isCharging ? "bolt.fill" : "battery.100.fill",
                         color: Color(hex: "#4CD964") ?? .green
                     )
-                    
                     CircularProgressView(
                         progress: statsController.volumeLevel,
                         icon: volumeIcon(level: statsController.volumeLevel, isMuted: statsController.isMuted),
                         color: Color(hex: "#8AADF4") ?? .blue
                     )
-                    
                     CircularProgressView(
                         progress: statsController.diskUsage,
                         icon: "internaldrive",
                         color: Color(Colors.diskUsage)
                     )
-                    
                     CircularProgressView(
                         progress: statsController.memoryUsage,
                         icon: "memorychip",
                         color: Color(Colors.accent)
                     )
                 }
-                .padding(.horizontal, 10)  // Added horizontal padding for the whole grid
+                .padding(.horizontal, 10)
+                
+                // Two-column layout for WeatherView and blank card
+                HStack(spacing: 16) {
+                    WeatherView(weatherController: weatherController)
+                    
+                    // Blank card with matching dimensions
+                    Card(
+                        content: AnyView(
+                            Color.clear
+                                .frame(width: 120, height: 100)
+                        ),
+                        backgroundColor: Color(Colors.cardBackground),
+                        padding: EdgeInsets(top: 10, leading: 10, bottom: 10, trailing: 10),
+                        backgroundImage: nil
+                    )
+                    .frame(height: 100)
+                }
+                .padding(.horizontal, 30)
                 
                 Spacer()
             }
@@ -632,7 +759,7 @@ struct ContentView: View {
         }
         .cornerRadius(12)
         .onReceive(uptimeTimer) { _ in
-            uptime = getUptime()  // Update the uptime every minute
+            uptime = getUptime()
         }
     }
     
@@ -867,14 +994,8 @@ class MediaController: ObservableObject {
         // Get initial playback state and time
         MRMediaRemoteGetNowPlayingInfo(DispatchQueue.main) { [weak self] info in
             DispatchQueue.main.async {
-                print("\nChecking Now Playing Info:")
-                print("MediaRemote Info:", info)
-                
-                let nowPlayingInfo = MPNowPlayingInfoCenter.default().nowPlayingInfo
-                print("MPNowPlayingInfoCenter Info:", nowPlayingInfo ?? "No info available")
                 
                 if let elapsed = info["kMRMediaRemoteNowPlayingInfoElapsedTime"] as? Double {
-                    print("Found elapsed time:", elapsed)
                     self?.initialTime = elapsed
                     self?.elapsedTime = elapsed
                     
@@ -1168,4 +1289,217 @@ extension Color {
             blue: Double(rgb & 0x0000FF) / 255.0
         )
     }
+}
+
+// Add a MediaControl button component
+struct MediaControlButton: View {
+    let systemName: String
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 12, weight: .semibold))  // Reduced from 16 to 12
+                .foregroundColor(.white)
+                .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+        }
+        .buttonStyle(.plain)
+        .onHover { inside in
+            if inside {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+    }
+}
+
+// Add WeatherController
+class WeatherController: ObservableObject {
+    @Published var currentTemp: Double = 0
+    @Published var feelsLike: Double = 0
+    @Published var condition: String = ""
+    @Published var humidity: Int = 0
+    @Published var weatherIcon: String = "sun.max.fill"
+    @Published var forecast: [(day: String, high: Double, low: Double, icon: String)] = []
+    
+    private var timer: Timer?
+    private let weatherIconMap: [Int: String] = [
+        1000: "sun.max.fill",        // Clear
+        1003: "cloud.sun.fill",      // Partly cloudy
+        1006: "cloud.fill",          // Cloudy
+        1009: "smoke.fill",          // Overcast
+        1030: "cloud.fog.fill",      // Mist
+        1063: "cloud.drizzle.fill",  // Rain
+        1066: "cloud.snow.fill",     // Snow
+        // Add more mappings as needed
+    ]
+    
+    init() {
+        updateWeather()
+        // Update weather every 30 minutes
+        timer = Timer.scheduledTimer(withTimeInterval: 1800, repeats: true) { [weak self] _ in
+            self?.updateWeather()
+        }
+    }
+    
+    private func updateWeather() {
+        // Get the absolute path to the .env file
+        let homeDirectory = FileManager.default.homeDirectoryForCurrentUser
+        let envPath = homeDirectory.appendingPathComponent(".config/sketchybar/helpers/event_providers/apple_menu/.env").path
+        
+        print("Looking for .env file at:", envPath)  // Debug print
+        
+        guard let envContent = try? String(contentsOfFile: envPath, encoding: .utf8) else {
+            print("Error: Could not load .env file from \(envPath)")
+            return
+        }
+        
+        // Parse API key and city from .env file
+        let lines = envContent.components(separatedBy: .newlines)
+        var apiKey = ""
+        var city = ""
+        
+        for line in lines {
+            if line.starts(with: "WEATHER_API_KEY=") {
+                apiKey = String(line.dropFirst("WEATHER_API_KEY=".count))
+            } else if line.starts(with: "WEATHER_CITY=") {
+                city = String(line.dropFirst("WEATHER_CITY=".count))
+            }
+        }
+        
+        guard !apiKey.isEmpty, !city.isEmpty else {
+            print("Error: Missing API key or city in .env file")
+            return
+        }
+        
+        // URL encode the city name
+        guard let encodedCity = city.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
+            print("Error: Could not encode city name")
+            return
+        }
+        
+        let urlString = "http://api.weatherapi.com/v1/forecast.json?key=\(apiKey)&q=\(encodedCity)&days=5&aqi=no&units=imperial"
+        
+        guard let url = URL(string: urlString) else {
+            print("Error: Could not create URL from string")
+            return 
+        }
+        
+        
+        URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
+            guard let data = data else { return }
+            
+            
+            do {
+                let decoder = JSONDecoder()
+                let weatherData = try decoder.decode(WeatherResponse.self, from: data)
+                
+                DispatchQueue.main.async {
+                    // Update the published properties
+                    self?.currentTemp = weatherData.current.temp_f
+                    self?.feelsLike = weatherData.current.feelslike_f
+                    self?.humidity = weatherData.current.humidity
+                    self?.condition = weatherData.current.condition.text
+                    
+                    // Update weather icon based on condition code
+                    if let iconCode = self?.weatherIconMap[weatherData.current.condition.code] {
+                        self?.weatherIcon = iconCode
+                    }
+                    
+                    self?.forecast = weatherData.forecast.forecastday.map { day in
+                        return (
+                            day: day.date,
+                            high: day.day.maxtemp_f,
+                            low: day.day.mintemp_f,
+                            icon: self?.weatherIconMap[day.day.condition.code] ?? "sun.max.fill"
+                        )
+                    }
+                }
+            } catch {
+                print("Error decoding weather data: \(error)")
+            }
+        }.resume()
+    }
+}
+
+// Add WeatherView
+struct WeatherView: View {
+    @ObservedObject var weatherController: WeatherController
+    
+    var body: some View {
+        Card(
+            content: AnyView(
+                ZStack(alignment: .bottomTrailing) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(weatherController.condition)
+                            .font(.system(size: 12))
+                            .foregroundColor(.white.opacity(0.7))
+                        
+                        Text("\(Int(weatherController.currentTemp))°F")
+                            .font(.system(size: 20, weight: .medium))
+                        
+                        Text("\(Int(weatherController.forecast.first?.high ?? 0))°/\(Int(weatherController.forecast.first?.low ?? 0))°")
+                            .font(.system(size: 12))
+                            .foregroundColor(.white.opacity(0.7))
+                        
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    Image(systemName: weatherController.weatherIcon)
+                        .font(.system(size: 20))
+                        .foregroundColor(.white.opacity(0.8))
+                }
+                .frame(height: 100)
+            ),
+            backgroundColor: Color(Colors.cardBackground),
+            padding: EdgeInsets(top: 10, leading: 10, bottom: 10, trailing: 10),
+            backgroundImage: nil
+        )
+    }
+}
+
+// Add these structs to decode the JSON response
+struct WeatherResponse: Codable {
+    let current: Current
+    let forecast: Forecast
+}
+
+struct Current: Codable {
+    let temp_f: Double
+    let feelslike_f: Double
+    let humidity: Int
+    let condition: Condition
+}
+
+struct Condition: Codable {
+    let code: Int
+    let text: String
+}
+
+struct Forecast: Codable {
+    let forecastday: [ForecastDay]
+}
+
+struct ForecastDay: Codable {
+    let date: String
+    let day: Day
+}
+
+struct Day: Codable {
+    let maxtemp_f: Double
+    let mintemp_f: Double
+    let condition: Condition
+}
+
+// Add a helper function to get day name from date string
+private func getDayName(from dateString: String) -> String {
+    let dateFormatter = DateFormatter()
+    dateFormatter.dateFormat = "yyyy-MM-dd"
+    
+    guard let date = dateFormatter.date(from: dateString) else { return "" }
+    
+    dateFormatter.dateFormat = "EEE" // "EEE" gives abbreviated day name (Mon, Tue, etc.)
+    return dateFormatter.string(from: date)
 }
