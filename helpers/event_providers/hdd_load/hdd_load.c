@@ -3,6 +3,10 @@
 #include <sys/statvfs.h>
 
 int main (int argc, char** argv) {
+    // Redirect stdout and stderr to /dev/null
+    freopen("/dev/null", "w", stdout);
+    freopen("/dev/null", "w", stderr);
+    
     float update_freq;
     if (argc < 3 || (sscanf(argv[2], "%f", &update_freq) != 1)) {
         printf("Usage: %s \"<event-name>\" \"<event_freq>\"\n", argv[0]);
@@ -26,7 +30,7 @@ int main (int argc, char** argv) {
         // Prepare the event message
         snprintf(trigger_message,
                  512,
-                 "--trigger '%s' total_space='%dGB' free_space='%dGB' used_space='%dGB' percent_used='%02d%%' percent_remaining='%02d%%'",
+                 "--trigger '%s' total_space='%luGB' free_space='%luGB' used_space='%luGB' percent_used='%02d%%' percent_remaining='%02d%%'",
                  argv[1],
                  disk.total_space,
                  disk.free_space,

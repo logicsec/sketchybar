@@ -2,6 +2,9 @@
 #include "../sketchybar.h"
 
 int main (int argc, char** argv) {
+    // Redirect stdout and stderr to /dev/null
+    freopen("/dev/null", "w", stdout);
+    freopen("/dev/null", "w", stderr);
     float update_freq;
     if (argc < 3 || (sscanf(argv[2], "%f", &update_freq) != 1)) {
         printf("Usage: %s \"<event-name>\" \"<event_freq>\"\n", argv[0]);

@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <sys/sysctl.h>
 
 struct memory {
     host_t host;
@@ -33,20 +34,24 @@ static inline void memory_update(struct memory* mem) {
         return;
     }
 
-    // Total memory is the sum of wired, active, and inactive pages
-    int total_pages = mem->vm_info.wire_count +
-                      mem->vm_info.active_count +
-                      mem->vm_info.inactive_count +
-                      mem->vm_info.free_count;
+    // Get total physical memory
+    int mib[2] = {CTL_HW, HW_MEMSIZE};
+    uint64_t total_memory_bytes = 0;
+    size_t length = sizeof(total_memory_bytes);
+    if (sysctl(mib, 2, &total_memory_bytes, &length, NULL, 0) == -1) {
+        printf("Error: Could not get total memory.\n");
+        return;
+    }
 
-    // Used memory is wired + active + inactive
-    int used_pages = mem->vm_info.wire_count +
-                     mem->vm_info.active_count +
-                     mem->vm_info.inactive_count;
+    // Convert to MB
+    mem->total_memory = total_memory_bytes / (1024 * 1024);
 
-    mem->total_memory = total_pages * vm_page_size / (1024 * 1024);  // in MB
-    mem->used_memory = used_pages * vm_page_size / (1024 * 1024);    // in MB
+    // Calculate used memory (active + wired)
+    uint64_t used_bytes = (mem->vm_info.active_count + mem->vm_info.wire_count) * ((uint64_t)vm_page_size);
+    mem->used_memory = used_bytes / (1024 * 1024);
+    
     mem->free_memory = mem->total_memory - mem->used_memory;
-
-    mem->memory_load_percentage = (double)mem->used_memory / (double)mem->total_memory * 100.0;
+    
+    // Calculate percentage based on used vs total
+    mem->memory_load_percentage = (int)((double)mem->used_memory / (double)mem->total_memory * 100.0 + 0.5);
 }

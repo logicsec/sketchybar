@@ -198,6 +198,29 @@ sbar.subscribe("brew_update", update_brew_count)
 sbar.subscribe("mail_check", update_mail_count)
 sbar.subscribe("messages_check", update_messages_count)
 
+-- Add these new event subscriptions
+brew:subscribe({ "forced", "routine", "system_woke" }, update_brew_count)
+mail:subscribe({ "forced", "routine", "system_woke" }, update_mail_count)
+messages:subscribe({ "forced", "routine", "system_woke" }, update_messages_count)
+
+brew:subscribe("mouse.clicked", function(env)
+    if env.modifier == "cmd" then  -- Command + Click to upgrade
+        sbar.exec("brew upgrade", function()
+            update_brew_count()  -- Update the count after upgrade
+            sbar.exec([[
+                osascript -e 'display notification "All packages have been upgraded" with title "Brew Upgrade Complete"'
+            ]])
+        end)
+    else  -- Normal click just updates the list
+        sbar.exec("brew update", function()
+            update_brew_count()
+            sbar.exec([[
+                osascript -e 'display notification "Brew package list has been updated" with title "Brew Update Complete"'
+            ]])
+        end)
+    end
+end)
+
 mail:subscribe("mouse.clicked", function(env)
     sbar.exec("open -a Mail")
 end)

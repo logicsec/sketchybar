@@ -80,25 +80,18 @@ local cpu = sbar.add("item", "widgets.cpu" , 42, {
 
 cpu:subscribe("cpu_update", function(env)
   -- Also available: env.user_load, env.sys_load
-  local load = tonumber(env.total_load)
-  cpu:push({ load / 100. })
-
   cpu:set({
     label = env.total_load .. "%",
   })
 end)
 
 memory:subscribe("memory_update", function(env)
-  local load = tonumber(env.memory_load)
-  memory:push({ load })
   memory:set({
       label = env.memory_load,
   })
 end)
 
 hdd:subscribe("hdd_update", function(env)
-  local load = tonumber(env.percent_used)
-  hdd:push({ load })
   hdd:set({
       label = env.percent_used,
   })

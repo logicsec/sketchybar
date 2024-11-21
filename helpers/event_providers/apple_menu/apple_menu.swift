@@ -126,34 +126,51 @@ extension NSColor {
     }
 }
 
+// Add this near the start of the file, after imports
+enum PanelType: String {
+    case menu = "menu"
+    case calendar = "date"
+    
+    static func from(string: String?) -> PanelType {
+        guard let str = string else { 
+            print("DEBUG: No string provided, defaulting to menu")
+            return .menu 
+        }
+        let panel = PanelType(rawValue: str) ?? .menu
+        print("DEBUG: Parsed panel type: \(str) -> \(panel)")
+        return panel
+    }
+}
+
 class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow?
-    private var autoCloseTimer: Timer?
+    var currentPanel: PanelType = .menu
     
-    func startAutoCloseTimer() {
-        autoCloseTimer?.invalidate()
-        autoCloseTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: false) { [weak self] _ in
-            self?.handleGracefulClose()
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        // Debug print arguments
+        print("DEBUG: All arguments:", ProcessInfo.processInfo.arguments)
+        
+        let args = ProcessInfo.processInfo.arguments
+        if let panelArg = args.dropFirst().first {
+            let cleanArg = panelArg.replacingOccurrences(of: "app=", with: "")
+            print("DEBUG: Panel argument after cleaning:", cleanArg)
+            currentPanel = PanelType.from(string: cleanArg)
         }
-    }
-    
-    func stopAutoCloseTimer() {
-        autoCloseTimer?.invalidate()
-        autoCloseTimer = nil
-    }
-    
-    func applicationDidFinishLaunching(_ notification: Notification) {        
-        signal(SIGUSR1, { signal in
-            if let delegate = NSApplication.shared.delegate as? AppDelegate {
-                DispatchQueue.main.async {
-                    delegate.handleGracefulClose()
-                }
-            }
-        })
         
-        let contentView = ContentView()
+        print("DEBUG: Selected panel type:", currentPanel)
         
-        // Get focused display position from yabai
+        // Choose content view based on panel type
+        let contentView: AnyView
+        switch currentPanel {
+        case .menu:
+            print("DEBUG: Creating menu panel")
+            contentView = AnyView(ContentView())
+        case .calendar:
+            print("DEBUG: Creating calendar panel")
+            contentView = AnyView(CalendarPanelView())
+        }
+        
+        // Rest of your existing window setup code...
         let yabaiTask = Process()
         yabaiTask.launchPath = "/usr/bin/env"
         yabaiTask.arguments = ["yabai", "-m", "query", "--displays", "--display"]
@@ -168,7 +185,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Get item position from SketchyBar
         let sketchyTask = Process()
         sketchyTask.launchPath = "/usr/bin/env"
-        sketchyTask.arguments = ["sketchybar", "--query", "apple.logo"]
+        sketchyTask.arguments = ["sketchybar", "--query", currentPanel == .menu ? "apple.logo" : "date"]
         
         let sketchyPipe = Pipe()
         sketchyTask.standardOutput = sketchyPipe
@@ -223,19 +240,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
            let displayRect = boundingRects["display-\(displayIndex)"] as? [String: Any],
            let _ = displayRect["origin"] as? [Double] {
             
-            
             let displayX = frame["x"] ?? 0
             let displayWidth = frame["w"] ?? 0
             let displayHeight = frame["h"] ?? 0
             let windowWidth: CGFloat = displayWidth * 0.20  // 20% of screen width
             
-            // Position at left edge of screen
+            // Position at left edge of screen for menu, right edge for calendar
             let windowY = displayHeight - topOffset
-        
+            let windowX: CGFloat
+            if currentPanel == .menu {
+                windowX = displayX + CGFloat(gapSize)
+            } else {
+                // For calendar panel, position at right edge of screen
+                windowX = displayX + displayWidth - windowWidth - CGFloat(gapSize)
+            }
             
             window = NSWindow(
                 contentRect: NSRect(
-                    x: displayX + CGFloat(gapSize),
+                    x: windowX,  // Use calculated windowX
                     y: CGFloat(gapSize),
                     width: windowWidth,
                     height: windowY - CGFloat(gapSize)
@@ -269,23 +291,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             contentView.layer?.backgroundColor = NSColor.clear.cgColor
             contentView.layer?.opacity = 0.0
             
-            // Start from completely collapsed state
-            contentView.layer?.transform = CATransform3DMakeTranslation(-window!.frame.width, 0, 0)
+            // Set initial position based on panel type
+            let initialTranslation = currentPanel == .menu ? 
+                -window!.frame.width :  // Slide from left for menu
+                window!.frame.width     // Slide from right for calendar
+            contentView.layer?.transform = CATransform3DMakeTranslation(initialTranslation, 0, 0)
         }
         
         window?.makeKeyAndOrderFront(nil)
         
-        // Start auto-close timer after window is shown
-        startAutoCloseTimer()
-        
         // Simple slide animation
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.3  // Reduced duration for cleaner slide
+            context.duration = 0.3
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             
             window?.contentView?.layer?.animate(
                 keyPath: "transform.translation.x",
-                from: -window!.frame.width,
+                from: currentPanel == .menu ? 
+                    -window!.frame.width :  // Slide from left for menu
+                    window!.frame.width,    // Slide from right for calendar
                 to: 0,
                 duration: context.duration
             )
@@ -296,6 +320,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 to: 1.0,
                 duration: context.duration
             )
+        }
+        
+        // Add these window properties
+        if let window = window {
+            window.isMovableByWindowBackground = false
+            window.level = .floating
+        }
+        
+        // Add click handler for detecting clicks outside the window
+        NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { event in
+            if let window = self.window {
+                let screenLocation = event.locationInWindow
+                
+                // Convert window frame to screen coordinates
+                let windowFrame = window.frame
+                
+                // Check if click is outside the window
+                if !windowFrame.contains(screenLocation) {
+                    // Send SIGUSR1 to self to close the window
+                    kill(getpid(), SIGUSR1)
+                }
+            }
         }
     }
     
@@ -319,7 +365,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             contentView.layer?.animate(
                 keyPath: "transform.translation.x",
                 from: 0,
-                to: -windowWidth,
+                to: currentPanel == .menu ? 
+                    -windowWidth :  // Slide to left for menu
+                    windowWidth,    // Slide to right for calendar
                 duration: context.duration
             )
             
@@ -592,103 +640,6 @@ struct ContentView: View {
         .padding(.horizontal, 30)
     }
 
-    // Add this new struct for the calendar
-    struct CalendarView: View {
-        private let calendar = Calendar.current
-        private let date = Date()
-        private let weekDays = ["S", "M", "T", "W", "T", "F", "S"]
-        
-        var body: some View {
-            GeometryReader { geometry in
-                let spacing = (geometry.size.width - 30 - (20 * 7)) / 6 // Calculate dynamic spacing
-                
-                VStack(spacing: 12) {
-                    // Month and Year
-                    Text(date.formatted(.dateTime.month(.wide).year()))
-                        .foregroundColor(.white)
-                        .font(.system(size: 14, weight: .semibold))
-                    
-                    // Week days
-                    HStack(spacing: spacing) {
-                        ForEach(weekDays, id: \.self) { day in
-                            Text(day)
-                                .font(.system(size: 12))
-                                .foregroundColor(day == "S" ? Color(hex: "#ed8796") ?? .red : .white.opacity(0.7))
-                                .frame(width: 20)
-                        }
-                    }
-                    
-                    // Calendar grid
-                    let days = generateDaysInMonth()
-                    VStack(spacing: 8) {
-                        ForEach(0..<6) { row in
-                            HStack(spacing: spacing) {
-                                ForEach(0..<7) { column in
-                                    let index = row * 7 + column
-                                    if index < days.count {
-                                        let day = days[index]
-                                        Text(day.number)
-                                            .font(.system(size: 12))
-                                            .foregroundColor(day.isCurrentMonth ? 
-                                                (day.isToday ? .white : .white.opacity(0.7)) : 
-                                                .white.opacity(0.3))
-                                            .frame(width: 20)
-                                            .fontWeight(day.isToday ? .bold : .regular)
-                                    } else {
-                                        Text("")
-                                            .frame(width: 20)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding(.vertical, 16)
-                .padding(.horizontal, 15) // Add horizontal padding
-                .frame(maxWidth: .infinity) // Make the VStack full width
-            }
-            .frame(height: 220) // Set a fixed height for the calendar
-        }
-        
-        private struct DayItem {
-            let number: String
-            let isCurrentMonth: Bool
-            let isToday: Bool
-        }
-        
-        private func generateDaysInMonth() -> [DayItem] {
-            var days: [DayItem] = []
-            
-            // Get the first day of the month
-            let firstDayOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: date))!
-            
-            // Get the weekday of the first day (0 = Sunday)
-            let firstWeekday = calendar.component(.weekday, from: firstDayOfMonth) - 1
-            
-            // Add days from previous month
-            let previousMonth = calendar.date(byAdding: .month, value: -1, to: firstDayOfMonth)!
-            let daysInPreviousMonth = calendar.range(of: .day, in: .month, for: previousMonth)!.count
-            for day in (daysInPreviousMonth - firstWeekday + 1)...daysInPreviousMonth {
-                days.append(DayItem(number: "\(day)", isCurrentMonth: false, isToday: false))
-            }
-            
-            // Add days from current month
-            let daysInMonth = calendar.range(of: .day, in: .month, for: firstDayOfMonth)!.count
-            let currentDay = calendar.component(.day, from: date)
-            for day in 1...daysInMonth {
-                days.append(DayItem(number: "\(day)", isCurrentMonth: true, isToday: day == currentDay))
-            }
-            
-            // Add days from next month
-            let remainingDays = 42 - days.count // 6 rows * 7 days = 42
-            for day in 1...remainingDays {
-                days.append(DayItem(number: "\(day)", isCurrentMonth: false, isToday: false))
-            }
-            
-            return days
-        }
-    }
-
     var body: some View {
         ZStack {
             Color(Colors.panelBackground)
@@ -696,14 +647,6 @@ struct ContentView: View {
             VStack(spacing: 16) {
                 profileSection
                 mediaPlayerSection
-                
-                Card(
-                    content: AnyView(CalendarView()),
-                    backgroundColor: Color(Colors.cardBackground),
-                    padding: EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0),
-                    backgroundImage: nil
-                )
-                .padding(.horizontal, 30)
                 
                 LazyVGrid(columns: [
                     GridItem(.flexible(), spacing: -10),
@@ -734,24 +677,6 @@ struct ContentView: View {
                 }
                 .padding(.horizontal, 10)
                 
-                // Two-column layout for WeatherView and blank card
-                HStack(spacing: 16) {
-                    WeatherView(weatherController: weatherController)
-                    
-                    // Blank card with matching dimensions
-                    Card(
-                        content: AnyView(
-                            Color.clear
-                                .frame(width: 120, height: 100)
-                        ),
-                        backgroundColor: Color(Colors.cardBackground),
-                        padding: EdgeInsets(top: 10, leading: 10, bottom: 10, trailing: 10),
-                        backgroundImage: nil
-                    )
-                    .frame(height: 100)
-                }
-                .padding(.horizontal, 30)
-                
                 Spacer()
             }
             
@@ -767,15 +692,9 @@ struct ContentView: View {
         MouseTrackingViewRepresentable(
             onMouseEntered: {
                 isMouseInside = true
-                if let delegate = NSApplication.shared.delegate as? AppDelegate {
-                    delegate.stopAutoCloseTimer()
-                }
             },
             onMouseExited: {
                 isMouseInside = false
-                if let delegate = NSApplication.shared.delegate as? AppDelegate {
-                    delegate.startAutoCloseTimer()
-                }
             }
         )
         .allowsHitTesting(false)
@@ -966,6 +885,7 @@ class MediaController: ObservableObject {
     @Published var currentApp: String = ""
     @Published var elapsedTime: TimeInterval = 0
     @Published var duration: TimeInterval = 0
+    @Published private(set) var lastArtwork: NSImage?
     
     private var initialTime: TimeInterval = 0
     private var playbackStartTime: Date?
@@ -1105,8 +1025,6 @@ class MediaController: ObservableObject {
                         self?.playbackStartTime = Date()
                         self?.startTimer()
                     }
-                } else {
-                    self?.stopTimer()
                 }
             }
         }
@@ -1140,7 +1058,13 @@ class MediaController: ObservableObject {
                 if let artworkData = info[kMRMediaRemoteNowPlayingInfoArtworkData] as? Data {
                     if let image = NSImage(data: artworkData) {
                         self.artwork = image
+                        self.lastArtwork = image // Store the artwork
                     }
+                }
+                
+                // If no current artwork but we have last artwork and title isn't empty
+                if self.artwork == nil && !self.title.isEmpty {
+                    self.artwork = self.lastArtwork
                 }
                 
                 // Always update duration and playback speed
@@ -1396,7 +1320,7 @@ class WeatherController: ObservableObject {
                 let weatherData = try decoder.decode(WeatherResponse.self, from: data)
                 
                 DispatchQueue.main.async {
-                    // Update the published properties
+                    // Update the published properties with Fahrenheit values
                     self?.currentTemp = weatherData.current.temp_f
                     self?.feelsLike = weatherData.current.feelslike_f
                     self?.humidity = weatherData.current.humidity
@@ -1430,33 +1354,33 @@ struct WeatherView: View {
     var body: some View {
         Card(
             content: AnyView(
-                ZStack(alignment: .bottomTrailing) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(weatherController.condition)
-                            .font(.system(size: 12))
-                            .foregroundColor(.white.opacity(0.7))
-                        
-                        Text("\(Int(weatherController.currentTemp))°F")
-                            .font(.system(size: 20, weight: .medium))
-                        
-                        Text("\(Int(weatherController.forecast.first?.high ?? 0))°/\(Int(weatherController.forecast.first?.low ?? 0))°")
-                            .font(.system(size: 12))
-                            .foregroundColor(.white.opacity(0.7))
-                        
-                        Spacer()
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    
+                HStack {
+                    // Left side - Weather icon
                     Image(systemName: weatherController.weatherIcon)
-                        .font(.system(size: 20))
-                        .foregroundColor(.white.opacity(0.8))
+                        .font(.system(size: 32))
+                        .foregroundColor(.white)
+                    
+                    Spacer()
+                    
+                    // Right side - Temperature and condition
+                    VStack(alignment: .trailing, spacing: 4) {
+                        // Changed °C to °F
+                        Text("\(Int(weatherController.currentTemp))°F")
+                            .font(.system(size: 32, weight: .medium))
+                            .foregroundColor(.white)
+                        
+                        // Condition text
+                        Text(weatherController.condition)
+                            .font(.system(size: 14))
+                            .foregroundColor(.white.opacity(0.7))
+                    }
                 }
-                .frame(height: 100)
             ),
             backgroundColor: Color(Colors.cardBackground),
-            padding: EdgeInsets(top: 10, leading: 10, bottom: 10, trailing: 10),
+            padding: EdgeInsets(top: 20, leading: 20, bottom: 20, trailing: 20),
             backgroundImage: nil
         )
+        .padding(.horizontal, 20)
     }
 }
 
@@ -1503,3 +1427,217 @@ private func getDayName(from dateString: String) -> String {
     dateFormatter.dateFormat = "EEE" // "EEE" gives abbreviated day name (Mon, Tue, etc.)
     return dateFormatter.string(from: date)
 }
+
+// Move CalendarView out of ContentView and place it at file level
+struct CalendarView: View {
+    private let weekDays = ["S", "M", "T", "W", "T", "F", "S"]
+    private let date: Date
+    
+    init() {
+        // Get date from sketchybar's date item
+        let dateTask = Process()
+        dateTask.launchPath = "/usr/bin/env"
+        dateTask.arguments = ["sketchybar", "--query", "date"]
+        
+        let datePipe = Pipe()
+        dateTask.standardOutput = datePipe
+        dateTask.launch()
+        
+        let dateData = datePipe.fileHandleForReading.readDataToEndOfFile()
+        dateTask.waitUntilExit()
+        
+        if let dateInfo = try? JSONSerialization.jsonObject(with: dateData, options: []) as? [String: Any],
+           let dateString = dateInfo["label"] as? String {
+            // Parse the date string from sketchybar
+            let formatter = DateFormatter()
+            formatter.dateFormat = "E MMM d"  // Format matching sketchybar's date format
+            if let parsedDate = formatter.date(from: dateString) {
+                self.date = parsedDate
+            } else {
+                self.date = Date()  // Fallback to current date if parsing fails
+            }
+        } else {
+            self.date = Date()  // Fallback to current date if query fails
+        }
+    }
+    
+    var body: some View {
+        GeometryReader { geometry in
+            let spacing = (geometry.size.width - 30 - (20 * 7)) / 6 // Calculate dynamic spacing
+            
+            VStack(spacing: 12) {
+                // Month and Year
+                Text(date.formatted(.dateTime.month(.wide).year()))
+                    .foregroundColor(.white)
+                    .font(.system(size: 14, weight: .semibold))
+                
+                // Week days
+                HStack(spacing: spacing) {
+                    ForEach(weekDays, id: \.self) { day in
+                        Text(day)
+                            .font(.system(size: 12))
+                            .foregroundColor(day == "S" ? Color(hex: "#ed8796") ?? .red : .white.opacity(0.7))
+                            .frame(width: 20)
+                    }
+                }
+                
+                // Calendar grid
+                let days = generateDaysInMonth()
+                VStack(spacing: 8) {
+                    ForEach(0..<6) { row in
+                        HStack(spacing: spacing) {
+                            ForEach(0..<7) { column in
+                                let index = row * 7 + column
+                                if index < days.count {
+                                    let day = days[index]
+                                    Text(day.number)
+                                        .font(.system(size: 12))
+                                        .foregroundColor(day.isCurrentMonth ? 
+                                            (day.isToday ? .white : .white.opacity(0.7)) : 
+                                            .white.opacity(0.3))
+                                        .frame(width: 20)
+                                        .fontWeight(day.isToday ? .bold : .regular)
+                                } else {
+                                    Text("")
+                                        .frame(width: 20)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.vertical, 16)
+            .padding(.horizontal, 15)
+            .frame(maxWidth: .infinity)
+        }
+        .frame(height: 220)
+    }
+    
+    private struct DayItem {
+        let number: String
+        let isCurrentMonth: Bool
+        let isToday: Bool
+    }
+    
+    private func generateDaysInMonth() -> [DayItem] {
+        var days: [DayItem] = []
+        
+        // Get the first day of the month
+        let firstDayOfMonth = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: date))!
+        
+        // Get the weekday of the first day (0 = Sunday)
+        let firstWeekday = Calendar.current.component(.weekday, from: firstDayOfMonth) - 1
+        
+        // Add days from previous month
+        let previousMonth = Calendar.current.date(byAdding: .month, value: -1, to: firstDayOfMonth)!
+        let daysInPreviousMonth = Calendar.current.range(of: .day, in: .month, for: previousMonth)!.count
+        for day in (daysInPreviousMonth - firstWeekday + 1)...daysInPreviousMonth {
+            days.append(DayItem(number: "\(day)", isCurrentMonth: false, isToday: false))
+        }
+        
+        // Add days from current month
+        let daysInMonth = Calendar.current.range(of: .day, in: .month, for: firstDayOfMonth)!.count
+        let currentDay = Calendar.current.component(.day, from: date)
+        for day in 1...daysInMonth {
+            days.append(DayItem(number: "\(day)", isCurrentMonth: true, isToday: day == currentDay))
+        }
+        
+        // Add days from next month
+        let remainingDays = 42 - days.count // 6 rows * 7 days = 42
+        for day in 1...remainingDays {
+            days.append(DayItem(number: "\(day)", isCurrentMonth: false, isToday: false))
+        }
+        
+        return days
+    }
+}
+
+// Add this new struct for panel titles
+struct PanelTitle: View {
+    let title: String
+    
+    var body: some View {
+        Text(title)
+            .font(.system(size: 20, weight: .semibold))
+            .foregroundColor(Color(hex: "#ed8796") ?? .white)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 30)
+            .padding(.top, 25)
+            .padding(.bottom, 10)
+    }
+}
+
+// Add new CalendarPanelView
+struct CalendarPanelView: View {
+    @StateObject private var statsController = StatsController()
+    @StateObject private var weatherController = WeatherController()
+    @State private var isMouseInside = false
+    
+    var body: some View {
+        ZStack {
+            Color(Colors.panelBackground)
+            
+            VStack(spacing: 16) {
+                // Add title
+                PanelTitle(title: "Time And Weather")
+                
+                // Calendar section
+                Card(
+                    content: AnyView(CalendarView()),
+                    backgroundColor: Color(Colors.cardBackground),
+                    padding: EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0),
+                    backgroundImage: nil
+                )
+                .padding(.horizontal, 30)
+                
+                // Weather section
+                WeatherView(weatherController: weatherController)
+                .padding(.horizontal, 10)
+                
+                Spacer()
+            }
+            
+            mouseTrackingOverlay
+        }
+        .cornerRadius(12)
+    }
+    
+    private var mouseTrackingOverlay: some View {
+        MouseTrackingViewRepresentable(
+            onMouseEntered: {
+                isMouseInside = true
+            },
+            onMouseExited: {
+                isMouseInside = false
+            }
+        )
+        .allowsHitTesting(false)
+    }
+}
+
+// MARK: - Preview Provider
+#if DEBUG
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContentView()
+            .frame(width: 300, height: 400)
+            .preferredColorScheme(.dark)
+    }
+}
+
+struct WeatherView_Previews: PreviewProvider {
+    static var previews: some View {
+        WeatherView(weatherController: WeatherController())
+            .frame(width: 280)
+            .preferredColorScheme(.dark)
+    }
+}
+
+struct CalendarView_Previews: PreviewProvider {
+    static var previews: some View {
+        CalendarView()
+            .frame(width: 280)
+            .preferredColorScheme(.dark)
+    }
+}
+#endif
