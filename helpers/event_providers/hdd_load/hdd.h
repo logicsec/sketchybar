@@ -20,11 +20,11 @@ static inline void disk_init(struct disk_info* disk) {
     disk->percent_remaining = 0;
 }
 
-static inline void disk_update(struct disk_info* disk) {
+static inline bool disk_update(struct disk_info* disk, const char* path) {
     struct statvfs stat;
-    if (statvfs("/", &stat) != 0) {
-        printf("Error: Could not read disk statistics.\n");
-        return;
+    if (statvfs(path, &stat) != 0) {
+        printf("Error: Could not read disk statistics for %s\n", path);
+        return false;
     }
 
     // Total space in bytes
@@ -40,4 +40,6 @@ static inline void disk_update(struct disk_info* disk) {
     // Calculate percentage of used and remaining space
     disk->percent_used = (disk->total_space > 0) ? ((disk->used_space * 100) / disk->total_space) : 0;
     disk->percent_remaining = (disk->total_space > 0) ? ((disk->free_space * 100) / disk->total_space) : 0;
+    
+    return true;
 }

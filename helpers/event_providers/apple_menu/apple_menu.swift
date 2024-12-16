@@ -649,16 +649,16 @@ struct ContentView: View {
                 mediaPlayerSection
                 
                 LazyVGrid(columns: [
-                    GridItem(.flexible(), spacing: -10),
+                    // GridItem(.flexible(), spacing: -10),
                     GridItem(.flexible(), spacing: -10),
                     GridItem(.flexible(), spacing: -10),
                     GridItem(.flexible(), spacing: -10)
                 ], spacing: -10) {
-                    CircularProgressView(
-                        progress: statsController.batteryLevel,
-                        icon: statsController.isCharging ? "bolt.fill" : "battery.100.fill",
-                        color: Color(hex: "#4CD964") ?? .green
-                    )
+                    // CircularProgressView(
+                    //     progress: statsController.batteryLevel,
+                    //     icon: statsController.isCharging ? "bolt.fill" : "battery.100.fill",
+                    //     color: Color(hex: "#4CD964") ?? .green
+                    // )
                     CircularProgressView(
                         progress: statsController.volumeLevel,
                         icon: volumeIcon(level: statsController.volumeLevel, isMuted: statsController.isMuted),

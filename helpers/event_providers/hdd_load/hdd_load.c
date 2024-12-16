@@ -3,9 +3,9 @@
 #include <sys/statvfs.h>
 
 int main (int argc, char** argv) {
-    // Redirect stdout and stderr to /dev/null
-    freopen("/dev/null", "w", stdout);
-    freopen("/dev/null", "w", stderr);
+    // Comment out stdout/stderr redirection for debugging
+    // freopen("/dev/null", "w", stdout);
+    // freopen("/dev/null", "w", stderr);
     
     float update_freq;
     if (argc < 3 || (sscanf(argv[2], "%f", &update_freq) != 1)) {
@@ -14,35 +14,33 @@ int main (int argc, char** argv) {
     }
 
     alarm(0);
-    struct disk_info disk;
-    disk_init(&disk);
+    struct disk_info root_disk;
+    struct disk_info external_disk;
+    disk_init(&root_disk);
+    disk_init(&external_disk);
 
     // Setup the event in sketchybar
     char event_message[512];
     snprintf(event_message, 512, "--add event '%s'", argv[1]);
     sketchybar(event_message);
 
-    char trigger_message[512];
+    char trigger_message[1024];  
     for (;;) {
-        // Acquire new disk info
-        disk_update(&disk);
+        // Acquire new disk info for both drives
+        disk_update(&root_disk, "/");
+        disk_update(&external_disk, "/Volumes/ExternalDrive");
 
-        // Prepare the event message
-        snprintf(trigger_message,
-                 512,
-                 "--trigger '%s' total_space='%luGB' free_space='%luGB' used_space='%luGB' percent_used='%02d%%' percent_remaining='%02d%%'",
-                 argv[1],
-                 disk.total_space,
-                 disk.free_space,
-                 disk.used_space,
-                 disk.percent_used,
-                 disk.percent_remaining);
+        // Calculate combined free space in TB (with one decimal place)
+        double total_free_tb = (root_disk.free_space + external_disk.free_space) / 1024.0;
+        
+        // Prepare the event message with available space in TB
+        snprintf(trigger_message, 1024,
+                "--trigger '%s' available='%.1fT'",
+                argv[1],
+                total_free_tb);
 
         // Trigger the event
         sketchybar(trigger_message);
-
-        // Debugging output
-        printf("Trigger message: %s\n", trigger_message); // Debugging
 
         // Wait
         usleep(update_freq * 1000000);

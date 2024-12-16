@@ -6,7 +6,7 @@ sbar.exec("killall cpu_load >/dev/null; $CONFIG_DIR/helpers/event_providers/cpu_
 sbar.exec("killall memory_load >/dev/null; $CONFIG_DIR/helpers/event_providers/memory_load/bin/memory_load memory_update 2.0")
 sbar.exec("killall hdd_load >/dev/null; $CONFIG_DIR/helpers/event_providers/hdd_load/bin/hdd_load hdd_update 2.0")
 
-local hdd = sbar.add("item", "widgets.hdd" , 42, {
+local hdd = sbar.add("item", "widgets.hdd" , 52, {
   position = "right",
   background = {
     height = 22,
@@ -19,7 +19,7 @@ local hdd = sbar.add("item", "widgets.hdd" , 42, {
     color = colors.yellow 
   },
   label = {
-    string = "??%",
+    string = "??T",
     font = {
       family = settings.font.numbers,
       style = settings.font.style_map["Bold"],
@@ -93,7 +93,7 @@ end)
 
 hdd:subscribe("hdd_update", function(env)
   hdd:set({
-      label = env.percent_used,
+      label = env.available,
   })
 end)
 
