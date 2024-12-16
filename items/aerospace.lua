@@ -34,7 +34,10 @@ local function update_space_focus(space_name, is_focused)
     space:set({
       icon = { highlight = is_focused },
       label = { highlight = is_focused },
-      background = { border_color = is_focused and colors.black or colors.bg2 }
+      background = { 
+        color = is_focused and colors.spaces.active or colors.spaces.inactive,
+        border_color = is_focused and colors.red or colors.black
+      }
     })
   end
 end
@@ -71,26 +74,23 @@ sbar.exec("aerospace list-workspaces --all --format '%{workspace}%{monitor-id}' 
     for _, space_name in ipairs(monitor_spaces) do
       local space = sbar.add("space", space_name, {
         icon = {
-          font = { family = settings.font.numbers },
-          string = space_name,
-          padding_left = 7,
-          padding_right = 3,
-          color = colors.white,
-          highlight_color = colors.red,
+          drawing = false
         },
         label = {
-          padding_right = 12,
+          string = space_name,
           color = colors.grey,
-          highlight_color = colors.white,
-          font = "sketchybar-app-font:Regular:16.0",
-          y_offset = -1,
+          highlight_color = colors.red,
+          font = {
+            style = settings.font.style_map["SemiBold"],
+            size = 10.0,
+        },
         },
         padding_right = 1,
         padding_left = 1,
+        width = 30,
         background = {
-          color = colors.bg1,
-          border_width = 1,
-          height = 26,
+          color = colors.spaces.inactive,
+          border_width = 0,
           border_color = colors.black,
         },
         associated_display = monitor_id
