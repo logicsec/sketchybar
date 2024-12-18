@@ -58,6 +58,77 @@ local function update_all_spaces_focus()
   end)
 end
 
+-- Function to reinitialize workspace state
+local function reinitialize_workspaces()
+  sbar.exec("aerospace list-workspaces --all --format '%{workspace}%{monitor-id}' --json", function(spaces_json)
+    local spaces = parse_workspace_json(spaces_json)
+    
+    -- Clear existing spaces
+    for name, space in pairs(spaces_by_name) do
+      space:remove()
+    end
+    spaces_by_name = {}
+    
+    -- Recreate spaces
+    local monitors = {}
+    for _, space_info in ipairs(spaces) do
+      local monitor_id = space_info["monitor-id"]
+      monitors[monitor_id] = monitors[monitor_id] or {}
+      table.insert(monitors[monitor_id], space_info.workspace)
+    end
+    
+    -- Create spaces for each monitor
+    for monitor_id, monitor_spaces in pairs(monitors) do
+      for _, space_name in ipairs(monitor_spaces) do
+        if space_name ~= ":default" then  -- Skip default spaces
+          local space = sbar.add("space", space_name, {
+            icon = { drawing = false },
+            label = {
+              string = space_name,
+              color = colors.grey,
+              highlight_color = colors.red,
+              font = {
+                style = settings.font.style_map["SemiBold"],
+                size = 10.0,
+              },
+            },
+            padding_right = 1,
+            padding_left = 1,
+            width = 30,
+            background = {
+              color = colors.spaces.inactive,
+              border_width = 0,
+              border_color = colors.black,
+            },
+            associated_display = monitor_id
+          })
+          spaces_by_name[space_name] = space
+          
+          -- Resubscribe to events
+          space:subscribe("aerospace_workspace_change", function(env)
+            update_all_spaces_focus()
+          end)
+          
+          space:subscribe("mouse.clicked", function()
+            sbar.exec("aerospace focus " .. space_name)
+          end)
+        end
+      end
+    end
+    
+    -- Update focus state
+    update_all_spaces_focus()
+  end)
+end
+
+-- Subscribe to system events
+sbar.subscribe("system_woke", function()
+  -- Wait a brief moment for aerospace to stabilize
+  sbar.delay(1, function()
+    reinitialize_workspaces()
+  end)
+end)
+
 sbar.exec("aerospace list-workspaces --all --format '%{workspace}%{monitor-id}' --json", function(spaces_json)
   local spaces = parse_workspace_json(spaces_json)
   
@@ -108,12 +179,12 @@ sbar.exec("aerospace list-workspaces --all --format '%{workspace}%{monitor-id}' 
 
       -- Subscribe to workspace changes
       space:subscribe("aerospace_workspace_change", function(env)
+        print("Workspace change detected for: test")
         update_all_spaces_focus()
       end)
 
       space:subscribe("mouse.clicked", function()
         sbar.exec("aerospace workspace " .. space_name, function()
-          -- After switching workspace, update the focus state
           update_all_spaces_focus()
         end)
       end)
