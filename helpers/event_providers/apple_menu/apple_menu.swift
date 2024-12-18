@@ -171,18 +171,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         // Rest of your existing window setup code...
-        let yabaiTask = Process()
-        yabaiTask.launchPath = "/usr/bin/env"
-        yabaiTask.arguments = ["yabai", "-m", "query", "--displays", "--display"]
+        // Get display information from Aerospace
+        print("DEBUG: Getting Aerospace monitor info...")
+        let aeroTask = Process()
+        aeroTask.launchPath = "/usr/bin/env"
+        aeroTask.arguments = ["aerospace", "list-monitors", "--json"]
         
-        let yabaiPipe = Pipe()
-        yabaiTask.standardOutput = yabaiPipe
-        yabaiTask.launch()
+        let aeroPipe = Pipe()
+        aeroTask.standardOutput = aeroPipe
+        aeroTask.launch()
         
-        let yabaiData = yabaiPipe.fileHandleForReading.readDataToEndOfFile()
-        yabaiTask.waitUntilExit()
+        let aeroData = aeroPipe.fileHandleForReading.readDataToEndOfFile()
+        aeroTask.waitUntilExit()
+        
+        print("DEBUG: Aerospace data:", String(data: aeroData, encoding: .utf8) ?? "No data")
                 
         // Get item position from SketchyBar
+        print("DEBUG: Getting sketchybar item position...")
         let sketchyTask = Process()
         sketchyTask.launchPath = "/usr/bin/env"
         sketchyTask.arguments = ["sketchybar", "--query", currentPanel == .menu ? "apple.logo" : "date"]
@@ -193,6 +198,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         let sketchyData = sketchyPipe.fileHandleForReading.readDataToEndOfFile()
         sketchyTask.waitUntilExit()
+        
+        print("DEBUG: Sketchybar item data:", String(data: sketchyData, encoding: .utf8) ?? "No data")
                 
         // Get bar height from sketchybar
         let barTask = Process()
@@ -212,41 +219,37 @@ class AppDelegate: NSObject, NSApplicationDelegate {
            let height = barInfo["height"] as? Double {
             barHeight = CGFloat(height)
         }
-                
-        // Get yabai window gaps
-        let gapsTask = Process()
-        gapsTask.launchPath = "/usr/bin/env"
-        gapsTask.arguments = ["yabai", "-m", "config", "window_gap"]
         
-        let gapsPipe = Pipe()
-        gapsTask.standardOutput = gapsPipe
-        gapsTask.launch()
-        
-        let gapsData = gapsPipe.fileHandleForReading.readDataToEndOfFile()
-        gapsTask.waitUntilExit()
-        
-        // Parse the gaps value
-        let gapSize = Int(String(data: gapsData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "0") ?? 0
+        // Calculate gap size based on bar height
+        let gapSize = Int(barHeight - 60) // Fixed offset for gap calculation
         
         // Calculate total offset (bar height + gap)
         let topOffset = barHeight + CGFloat(gapSize)
         
         // Parse responses and position window
-        if let yabaiInfo = try? JSONSerialization.jsonObject(with: yabaiData, options: []) as? [String: Any],
-           let displayIndex = yabaiInfo["index"] as? Int,
-           let frame = yabaiInfo["frame"] as? [String: Double],
-           let itemInfo = try? JSONSerialization.jsonObject(with: sketchyData, options: []) as? [String: Any],
-           let boundingRects = itemInfo["bounding_rects"] as? [String: Any],
-           let displayRect = boundingRects["display-\(displayIndex)"] as? [String: Any],
-           let _ = displayRect["origin"] as? [Double] {
+        if let itemInfo = try? JSONSerialization.jsonObject(with: sketchyData, options: []) as? [String: Any],
+           let position = itemInfo["position"] as? [String: Double] {
             
-            let displayX = frame["x"] ?? 0
-            let displayWidth = frame["w"] ?? 0
-            let displayHeight = frame["h"] ?? 0
+            // Find the correct screen based on the item's position
+            let itemX = CGFloat(position["x"] ?? 0)
+            let itemY = CGFloat(position["y"] ?? 0)
+            let itemPoint = NSPoint(x: itemX, y: itemY)
+            
+            guard let screen = NSScreen.screens.first(where: { NSPointInRect(itemPoint, $0.frame) }) ?? NSScreen.main else {
+                print("ERROR: Could not find screen for item position")
+                return
+            }
+            
+            // Get the actual screen dimensions
+            let displayFrame = screen.frame
+            let displayX = displayFrame.origin.x
+            let displayY = displayFrame.origin.y
+            let displayWidth = displayFrame.width
+            let displayHeight = displayFrame.height
             let windowWidth: CGFloat = displayWidth * 0.20  // 20% of screen width
             
             // Position at left edge of screen for menu, right edge for calendar
-            let windowY = displayHeight - topOffset
+            let windowY = displayHeight + displayY - topOffset
             let windowX: CGFloat
             if currentPanel == .menu {
                 windowX = displayX + CGFloat(gapSize)
