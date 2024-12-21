@@ -27,108 +27,6 @@ local function parse_workspace_json(json_str)
   return spaces
 end
 
--- Function to update space highlighting based on focus
-local function update_space_focus(space_name, is_focused)
-  local space = spaces_by_name[space_name]
-  if space then
-    space:set({
-      icon = { highlight = is_focused },
-      label = { highlight = is_focused },
-      background = { 
-        color = is_focused and colors.spaces.active or colors.spaces.inactive,
-        border_color = is_focused and colors.red or colors.black
-      }
-    })
-  end
-end
-
--- Function to update all space highlights
-local function update_all_spaces_focus()
-  sbar.exec("aerospace list-workspaces --monitor all --visible", function(visible_spaces)
-    -- Create a set of visible spaces for quick lookup
-    local visible = {}
-    for space in visible_spaces:gmatch("[^\r\n]+") do
-      visible[space] = true
-    end
-    
-    -- Update all spaces
-    for space_name, _ in pairs(spaces_by_name) do
-      update_space_focus(space_name, visible[space_name] or false)
-    end
-  end)
-end
-
--- Function to reinitialize workspace state
-local function reinitialize_workspaces()
-  sbar.exec("aerospace list-workspaces --all --format '%{workspace}%{monitor-id}' --json", function(spaces_json)
-    local spaces = parse_workspace_json(spaces_json)
-    
-    -- Clear existing spaces
-    for name, space in pairs(spaces_by_name) do
-      space:remove()
-    end
-    spaces_by_name = {}
-    
-    -- Recreate spaces
-    local monitors = {}
-    for _, space_info in ipairs(spaces) do
-      local monitor_id = space_info["monitor-id"]
-      monitors[monitor_id] = monitors[monitor_id] or {}
-      table.insert(monitors[monitor_id], space_info.workspace)
-    end
-    
-    -- Create spaces for each monitor
-    for monitor_id, monitor_spaces in pairs(monitors) do
-      for _, space_name in ipairs(monitor_spaces) do
-        if space_name ~= ":default" then  -- Skip default spaces
-          local space = sbar.add("space", space_name, {
-            icon = { drawing = false },
-            label = {
-              string = space_name,
-              color = colors.grey,
-              highlight_color = colors.red,
-              font = {
-                style = settings.font.style_map["SemiBold"],
-                size = 10.0,
-              },
-            },
-            padding_right = 1,
-            padding_left = 1,
-            width = 30,
-            background = {
-              color = colors.spaces.inactive,
-              border_width = 0,
-              border_color = colors.black,
-            },
-            associated_display = monitor_id
-          })
-          spaces_by_name[space_name] = space
-          
-          -- Resubscribe to events
-          space:subscribe("aerospace_workspace_change", function(env)
-            update_all_spaces_focus()
-          end)
-          
-          space:subscribe("mouse.clicked", function()
-            sbar.exec("aerospace focus " .. space_name)
-          end)
-        end
-      end
-    end
-    
-    -- Update focus state
-    update_all_spaces_focus()
-  end)
-end
-
--- Subscribe to system events
-sbar.subscribe("system_woke", function()
-  -- Wait a brief moment for aerospace to stabilize
-  sbar.delay(1, function()
-    reinitialize_workspaces()
-  end)
-end)
-
 sbar.exec("aerospace list-workspaces --all --format '%{workspace}%{monitor-id}' --json", function(spaces_json)
   local spaces = parse_workspace_json(spaces_json)
   
@@ -139,36 +37,47 @@ sbar.exec("aerospace list-workspaces --all --format '%{workspace}%{monitor-id}' 
     monitors[monitor_id] = monitors[monitor_id] or {}
     table.insert(monitors[monitor_id], space_info.workspace)
   end
-  
-  -- Create spaces for each monitor
+
   for monitor_id, monitor_spaces in pairs(monitors) do
     for _, space_name in ipairs(monitor_spaces) do
-      local space = sbar.add("space", space_name, {
-        icon = {
-          drawing = false
-        },
-        label = {
-          string = space_name,
-          color = colors.grey,
-          highlight_color = colors.red,
-          font = {
-            style = settings.font.style_map["SemiBold"],
-            size = 10.0,
-        },
-        },
-        padding_right = 1,
-        padding_left = 1,
-        width = 30,
-        background = {
-          color = colors.spaces.inactive,
-          border_width = 0,
-          border_color = colors.black,
-        },
-        associated_display = monitor_id
-      })
-      
-      -- Store space reference
-      spaces_by_name[space_name] = space
+        local space = sbar.add("item", "space." .. space_name, {
+          icon = {
+            font = {
+              style = settings.font.style_map["SemiBold"],
+              size = 10.0,
+            },
+            string = space_name,
+            padding_left = 7,
+            padding_right = 3,
+            color = colors.white,
+            highlight_color = colors.red,
+          },
+          label = {
+            padding_right = 12,
+            color = colors.grey,
+            highlight_color = colors.white,
+            font = "sketchybar-app-font:Regular:16.0",
+            y_offset = -1,
+          },
+          padding_right = 1,
+          padding_left = 1,
+          background = {
+            color = colors.bg1,
+            border_width = 1,
+            height = 26,
+            border_color = colors.black,
+          },
+          associated_display = monitor_id
+        })
+
+        local space_bracket = sbar.add("bracket", { space.name }, {
+          background = {
+            color = colors.transparent,
+            border_color = colors.bg2,
+            height = 28,
+            border_width = 2
+          }
+        })
 
       -- Padding space
       local space_padding = sbar.add("item", "space.padding." .. space_name, {
@@ -177,47 +86,25 @@ sbar.exec("aerospace list-workspaces --all --format '%{workspace}%{monitor-id}' 
         associated_display = monitor_id
       })
 
-      -- Subscribe to workspace changes
       space:subscribe("aerospace_workspace_change", function(env)
-        print("Workspace change detected for: test")
-        update_all_spaces_focus()
+        local selected = env.FOCUSED_WORKSPACE == space_name
+        local color = selected and colors.grey or colors.bg2
+        space:set({
+          icon = { highlight = selected, },
+          label = { highlight = selected },
+          background = { border_color = selected and colors.black or colors.bg2 }
+        })
+        space_bracket:set({
+          background = { border_color = selected and colors.grey or colors.bg2 }
+        })
       end)
 
       space:subscribe("mouse.clicked", function()
-        sbar.exec("aerospace workspace " .. space_name, function()
-          update_all_spaces_focus()
-        end)
-      end)
-
-      space:subscribe("space_windows_change", function()
-        sbar.exec("aerospace list-windows --format %{app-name} --workspace " .. space_name, function(windows)
-          local no_app = true
-          local icon_line = ""
-          for app in windows:gmatch("[^\r\n]+") do
-            no_app = false
-            local lookup = app_icons[app]
-            local icon = ((lookup == nil) and app_icons["default"] or lookup)
-            icon_line = icon_line .. " " .. icon
-          end
-    
-          if (no_app) then
-            icon_line = " —"
-          end
-          sbar.animate("tanh", 10, function()
-            space:set({ label = icon_line })
-          end)
-        end)
+        sbar.exec("aerospace workspace " .. space_name)
       end)
 
       item_order = item_order .. " " .. space.name .. " " .. space_padding.name
     end
   end
-  
-  -- Only try to reorder if we have spaces
-  if item_order ~= "" then
-    sbar.exec("sketchybar --reorder " .. item_order .. " front_app")
-  end
-  
-  -- Initial focus update
-  update_all_spaces_focus()
+  sbar.exec("sketchybar --reorder " .. item_order .. " front_app")
 end)
