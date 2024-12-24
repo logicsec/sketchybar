@@ -6,6 +6,10 @@ local app_icons = require("helpers.app_icons")
 local item_order = ""
 local spaces_by_name = {}
 
+local function getAppIcon(app_name)
+  return app_icons[app_name] or app_icons["default"]
+end
+
 -- Simple JSON array parser for our specific case
 local function parse_workspace_json(json_str)
   if not json_str then return {} end
@@ -27,84 +31,100 @@ local function parse_workspace_json(json_str)
   return spaces
 end
 
+local function get_workspace_icon(workspace_name)
+  -- Extract just the workspace name without any prefix
+  local name = workspace_name:match("[^/]+$") or workspace_name
+  return workspace_icons[name] or "󰆮"
+end
+
 sbar.exec("aerospace list-workspaces --all --format '%{workspace}%{monitor-id}' --json", function(spaces_json)
   local spaces = parse_workspace_json(spaces_json)
   
-  -- Group spaces by monitor
-  local monitors = {}
-  for _, space_info in ipairs(spaces) do
-    local monitor_id = space_info["monitor-id"]
-    monitors[monitor_id] = monitors[monitor_id] or {}
-    table.insert(monitors[monitor_id], space_info.workspace)
-  end
+  -- Get all visible workspaces
+  sbar.exec("aerospace list-workspaces --monitor all --visible", function(visible_workspaces)
+    -- Create a set of visible workspaces for quick lookup
+    local visible_set = {}
+    for workspace in visible_workspaces:gmatch("[^\r\n]+") do
+      visible_set[workspace] = true
+    end
+    
+    -- Group spaces by monitor
+    local monitors = {}
+    for _, space_info in ipairs(spaces) do
+      local monitor_id = space_info["monitor-id"]
+      monitors[monitor_id] = monitors[monitor_id] or {}
+      table.insert(monitors[monitor_id], space_info.workspace)
+    end
 
-  for monitor_id, monitor_spaces in pairs(monitors) do
-    for _, space_name in ipairs(monitor_spaces) do
-        local space = sbar.add("item", "space." .. space_name, {
-          icon = {
-            font = {
-              style = settings.font.style_map["SemiBold"],
-              size = 10.0,
+    for monitor_id, monitor_spaces in pairs(monitors) do
+      for _, space_name in ipairs(monitor_spaces) do
+          local space = sbar.add("item", "space." .. space_name, {
+            icon = {
+              drawing = false,
             },
-            string = space_name,
-            padding_left = 7,
-            padding_right = 3,
-            color = colors.white,
-            highlight_color = colors.red,
-          },
-          label = {
-            padding_right = 12,
-            color = colors.grey,
-            highlight_color = colors.white,
-            font = "sketchybar-app-font:Regular:16.0",
-            y_offset = -1,
-          },
-          padding_right = 1,
-          padding_left = 1,
-          background = {
-            color = colors.bg1,
-            border_width = 1,
-            height = 26,
-            border_color = colors.black,
-          },
+            label = {
+              drawing = true,
+              string = space_name:match("[^/]+$") or space_name,
+              color = colors.white,
+              font = {
+                style = settings.font.style_map["SemiBold"],
+                size = 12.0,
+              },
+              padding_right = 10,
+              padding_left = 10
+            },
+            padding_right = 1,
+            padding_left = 1,
+            background = {
+              color = visible_set[space_name] and colors.red or colors.bg1,
+              border_width = 0,
+              height = 26,
+            },
+            associated_display = monitor_id
+          })
+
+          local space_bracket = sbar.add("bracket", { space.name }, {
+            background = {
+              color = colors.transparent,
+              border_color = colors.bg2,
+              height = 28,
+              border_width = 0
+            }
+          })
+
+        -- Padding space
+        local space_padding = sbar.add("item", "space.padding." .. space_name, {
+          script = "",
+          width = settings.group_paddings,
           associated_display = monitor_id
         })
 
-        local space_bracket = sbar.add("bracket", { space.name }, {
-          background = {
-            color = colors.transparent,
-            border_color = colors.bg2,
-            height = 28,
-            border_width = 2
-          }
-        })
+        space:subscribe("aerospace_workspace_change", function(env)
+          -- Get current visible workspaces after change
+          sbar.exec("aerospace list-workspaces --monitor all --visible", function(visible_workspaces)
+            local visible_set = {}
+            for workspace in visible_workspaces:gmatch("[^\r\n]+") do
+              visible_set[workspace] = true
+            end
+            
+            space:set({
+              icon = { color = colors.white },
+              label = { 
+                drawing = true,
+                color = colors.white
+              },
+              background = { color = visible_set[space_name] and colors.red or colors.bg1 }
+            })
+          end)
+        end)
 
-      -- Padding space
-      local space_padding = sbar.add("item", "space.padding." .. space_name, {
-        script = "",
-        width = settings.group_paddings,
-        associated_display = monitor_id
-      })
+        space:subscribe("mouse.clicked", function()
+          sbar.exec("aerospace workspace " .. space_name)
+        end)
 
-      space:subscribe("aerospace_workspace_change", function(env)
-        local selected = env.FOCUSED_WORKSPACE == space_name
-        local color = selected and colors.grey or colors.bg2
-        space:set({
-          icon = { highlight = selected, },
-          label = { highlight = selected },
-          background = { border_color = selected and colors.black or colors.bg2 }
-        })
-        space_bracket:set({
-          background = { border_color = selected and colors.grey or colors.bg2 }
-        })
-      end)
-
-      space:subscribe("mouse.clicked", function()
-        sbar.exec("aerospace workspace " .. space_name)
-      end)
-
-      item_order = item_order .. " " .. space.name .. " " .. space_padding.name
+        item_order = item_order .. " " .. space.name .. " " .. space_padding.name
+      end
     end
-  end
-  sbar.exec("sketchybar --reorder " .. item_order .. " front_app")
+    sbar.exec("sketchybar --reorder " .. item_order .. " front_app")
+  end)
 end)
