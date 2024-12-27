@@ -125,6 +125,6 @@ sbar.exec("aerospace list-workspaces --all --format '%{workspace}%{monitor-id}' 
         item_order = item_order .. " " .. space.name .. " " .. space_padding.name
       end
     end
-    sbar.exec("sketchybar --reorder " .. item_order .. " front_app")
+    sbar.exec("sketchybar --reorder " .. item_order .. " front_app menus")
   end)
 end)

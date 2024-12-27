@@ -1,9 +1,14 @@
 import Cocoa
 import SwiftUI
 import MediaPlayer
+import IOKit
 import IOKit.ps
+import IOKit.pwr_mgt
 import CoreAudio
+import CoreBluetooth
 import Foundation
+import AppKit
+
 
 // Replace the existing MediaRemote declarations with this approach
 let bundle = CFBundleCreate(kCFAllocatorDefault, NSURL(fileURLWithPath: "/System/Library/PrivateFrameworks/MediaRemote.framework"))
@@ -92,12 +97,20 @@ func getUptime() -> String {
 }
 
 struct Colors {
-    static var panelBackground = NSColor(hex: "0D1116")!.withAlphaComponent(0.95)
-    static var cardBackground = NSColor(hex: "1B2128")!.withAlphaComponent(0.95)
-    static var accent = NSColor(hex: "8fa9e6")!
-    static var diskUsage = NSColor(hex: "e6c17d")!
-    static var graphBackground = NSColor(hex: "414559")!
-    
+    // Backgrounds
+    // static var panelBackground = NSColor(hex: "2E3440")!.withAlphaComponent(0.95) // Nord 1 (Polar Night)
+    static var panelBackground = NSColor(hex: "2E3440")!.withAlphaComponent(1) // Nord 1 (Polar Night)
+    static var cardBackground = NSColor(hex: "3B4252")!.withAlphaComponent(0.95) // Nord 2 (Polar Night)
+    static var graphBackground = NSColor(hex: "434C5E")! // Nord 3 (Polar Night)
+
+    // Accents
+    static var accent = NSColor(hex: "88C0D0")! // Nord 4 (Snow Storm)
+    static var blue = NSColor(hex: "81A1C1")! // Nord 5 (Snow Storm)
+    static var green = NSColor(hex: "A3BE8C")! // Nord 6 (Frost)
+    static var yellow = NSColor(hex: "EBCB8B")! // Nord 7 (Frost)
+    static var orange = NSColor(hex: "D19A66")! // Nord 8 (Frost)
+    static var red = NSColor(hex: "BF616A")! // Nord 9 (Frost)
+
     static func initialize(panelHex: String, cardHex: String) {
         if let panel = NSColor(hex: panelHex) {
             panelBackground = panel
@@ -126,7 +139,24 @@ extension NSColor {
     }
 }
 
-// Add this near the start of the file, after imports
+struct VisualEffectBlur: NSViewRepresentable {
+    var material: NSVisualEffectView.Material = .contentBackground // Use a less intense material
+    var blendingMode: NSVisualEffectView.BlendingMode = .behindWindow
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let visualEffectView = NSVisualEffectView()
+        visualEffectView.material = material
+        visualEffectView.blendingMode = blendingMode
+        visualEffectView.state = .active // Enable the blur effect
+        return visualEffectView
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = material
+        nsView.blendingMode = blendingMode
+    }
+}
+
 enum PanelType: String {
     case menu = "menu"
     case calendar = "date"
@@ -171,99 +201,67 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         // Rest of your existing window setup code...
-        // Get display information from Aerospace
-        print("DEBUG: Getting Aerospace monitor info...")
-        let aeroTask = Process()
-        aeroTask.launchPath = "/usr/bin/env"
-        aeroTask.arguments = ["aerospace", "list-monitors", "--json"]
+        let aerospacePipe = Pipe()
+        let aerospaceTask = Process()
+        aerospaceTask.launchPath = "/usr/bin/env"
+        aerospaceTask.arguments = ["aerospace", "list-monitors", "--format", "{\"id\":%{monitor-id}}"]
+        aerospaceTask.standardOutput = aerospacePipe
         
-        let aeroPipe = Pipe()
-        aeroTask.standardOutput = aeroPipe
-        aeroTask.launch()
-        
-        let aeroData = aeroPipe.fileHandleForReading.readDataToEndOfFile()
-        aeroTask.waitUntilExit()
-        
-        print("DEBUG: Aerospace data:", String(data: aeroData, encoding: .utf8) ?? "No data")
-                
-        // Get item position from SketchyBar
-        print("DEBUG: Getting sketchybar item position...")
+        let sketchyPipe = Pipe()
         let sketchyTask = Process()
         sketchyTask.launchPath = "/usr/bin/env"
         sketchyTask.arguments = ["sketchybar", "--query", currentPanel == .menu ? "apple.logo" : "date"]
-        
-        let sketchyPipe = Pipe()
         sketchyTask.standardOutput = sketchyPipe
-        sketchyTask.launch()
         
-        let sketchyData = sketchyPipe.fileHandleForReading.readDataToEndOfFile()
-        sketchyTask.waitUntilExit()
-        
-        print("DEBUG: Sketchybar item data:", String(data: sketchyData, encoding: .utf8) ?? "No data")
-                
-        // Get bar height from sketchybar
-        let barTask = Process()
-        barTask.launchPath = "/usr/bin/env"
-        barTask.arguments = ["sketchybar", "--query", "bar"]
-        
-        let barPipe = Pipe()
-        barTask.standardOutput = barPipe
-        barTask.launch()
-        
-        let barData = barPipe.fileHandleForReading.readDataToEndOfFile()
-        barTask.waitUntilExit()
-        
-        // Parse bar height from sketchybar data
-        var barHeight: CGFloat = 25  // Default height
-        if let barInfo = try? JSONSerialization.jsonObject(with: barData, options: []) as? [String: Any],
-           let height = barInfo["height"] as? Double {
-            barHeight = CGFloat(height)
-        }
-        
-        // Calculate gap size based on bar height
-        let gapSize = Int(barHeight - 60) // Fixed offset for gap calculation
-        
-        // Calculate total offset (bar height + gap)
-        let topOffset = barHeight + CGFloat(gapSize)
-        
-        // Parse responses and position window
-        if let itemInfo = try? JSONSerialization.jsonObject(with: sketchyData, options: []) as? [String: Any],
-           let position = itemInfo["position"] as? [String: Double] {
+        do {
+            aerospaceTask.launch()
+            sketchyTask.launch()
             
-            // Find the correct screen based on the item's position
-            let itemX = CGFloat(position["x"] ?? 0)
-            let itemY = CGFloat(position["y"] ?? 0)
-            let itemPoint = NSPoint(x: itemX, y: itemY)
+            let aerospaceData = aerospacePipe.fileHandleForReading.readDataToEndOfFile()
+            let sketchyData = sketchyPipe.fileHandleForReading.readDataToEndOfFile()
             
-            guard let screen = NSScreen.screens.first(where: { NSPointInRect(itemPoint, $0.frame) }) ?? NSScreen.main else {
-                print("ERROR: Could not find screen for item position")
+            // Parse aerospace output to get monitor ID
+            let aerospaceStr = String(data: aerospaceData, encoding: .utf8) ?? ""
+            let monitorLines = aerospaceStr.components(separatedBy: .newlines).filter { !$0.isEmpty }
+            
+            guard let firstMonitor = monitorLines.first,
+                  let monitorData = firstMonitor.data(using: .utf8),
+                  let monitorInfo = try? JSONSerialization.jsonObject(with: monitorData, options: []) as? [String: Any],
+                  let monitorId = monitorInfo["id"] as? Int,
+                  let itemInfo = try? JSONSerialization.jsonObject(with: sketchyData, options: []) as? [String: Any],
+                  let boundingRects = itemInfo["bounding_rects"] as? [String: Any],
+                  let displayRect = boundingRects["display-\(monitorId)"] as? [String: Any],
+                  let _ = displayRect["origin"] as? [Double] else {
                 return
             }
             
-            // Get the actual screen dimensions
-            let displayFrame = screen.frame
-            let displayX = displayFrame.origin.x
-            let displayY = displayFrame.origin.y
-            let displayWidth = displayFrame.width
-            let displayHeight = displayFrame.height
+            // Get screen information from NSScreen
+            let screens = NSScreen.screens
+            guard monitorId - 1 >= 0 && monitorId - 1 < screens.count,
+                  let screen = screens[safe: monitorId - 1] else { return }
+            let frame = screen.frame
+            
+            let displayX = frame.origin.x
+            let displayWidth = frame.width
+            let displayHeight = frame.height
             let windowWidth: CGFloat = displayWidth * 0.20  // 20% of screen width
             
-            // Position at left edge of screen for menu, right edge for calendar
-            let windowY = displayHeight + displayY - topOffset
+            // Position at top edge of screen for both menu and calendar
+            let windowY = displayHeight - 2  // Reduce the top gap
             let windowX: CGFloat
             if currentPanel == .menu {
-                windowX = displayX + CGFloat(gapSize)
+                windowX = displayX + 1
             } else {
                 // For calendar panel, position at right edge of screen
-                windowX = displayX + displayWidth - windowWidth - CGFloat(gapSize)
+                windowX = displayX + displayWidth - windowWidth - 1
             }
             
             window = NSWindow(
                 contentRect: NSRect(
-                    x: windowX,  // Use calculated windowX
-                    y: CGFloat(gapSize),
+                    x: windowX,
+                    y: windowY - (windowY / 1.7),  // Remove the +2 offset
                     width: windowWidth,
-                    height: windowY - CGFloat(gapSize)
+                    height: (windowY / 1.7)
                 ),
                 styleMask: [],  // Empty style mask prevents all window controls including resizing
                 backing: .buffered,
@@ -271,16 +269,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             )
             
             // Force the window size
-            window?.setContentSize(NSSize(width: windowWidth, height: windowY - CGFloat(gapSize)))
+            window?.setContentSize(NSSize(width: windowWidth, height: (windowY / 1.7)))
             
             // Add size constraint
             if let window = window {
-                window.maxSize = NSSize(width: windowWidth, height: windowY - CGFloat(gapSize))
-                window.minSize = NSSize(width: windowWidth, height: windowY - CGFloat(gapSize))
+                window.maxSize = NSSize(width: windowWidth, height: (windowY / 1.7))
+                window.minSize = NSSize(width: windowWidth, height: (windowY / 1.7))
             }
-            
         }
-        
+            
         window?.contentView = NSHostingView(rootView: contentView)
         window?.backgroundColor = .clear
         window?.isMovableByWindowBackground = false
@@ -305,9 +302,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Simple slide animation
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.3
+            context.duration = 0.2
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            
+        
             window?.contentView?.layer?.animate(
                 keyPath: "transform.translation.x",
                 from: currentPanel == .menu ? 
@@ -316,7 +313,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 to: 0,
                 duration: context.duration
             )
-            
+        
             window?.contentView?.layer?.animate(
                 keyPath: "opacity",
                 from: 0.0,
@@ -335,10 +332,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { event in
             if let window = self.window {
                 let screenLocation = event.locationInWindow
-                
+            
                 // Convert window frame to screen coordinates
                 let windowFrame = window.frame
-                
+            
                 // Check if click is outside the window
                 if !windowFrame.contains(screenLocation) {
                     // Send SIGUSR1 to self to close the window
@@ -433,9 +430,10 @@ struct CircularProgressView: View {
     let progress: Double
     let icon: String
     let color: Color
+    var iconSize: CGFloat = 15 // Default icon size
     
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 15) {
             ZStack {
                 Circle()
                     .trim(from: 0, to: CGFloat(progress))
@@ -444,17 +442,17 @@ struct CircularProgressView: View {
                     .rotationEffect(.degrees(-90))
                 
                 Image(systemName: icon)
-                    .font(.system(size: 16))
+                    .font(.system(size: 14))
                     .foregroundColor(color)
             }
-            .padding(.top, 12)
+            .padding(.top, 10)
             
             Text("\(Int(progress * 100))%")
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: iconSize, weight: .medium))
                 .foregroundColor(color)
-                .padding(.bottom, 12)
+                .padding(.bottom, 5)
         }
-        .frame(width: 90, height: 110)
+        .frame(width: 110, height: 110)
         .background(Color(Colors.cardBackground))
         .cornerRadius(12)
     }
@@ -519,13 +517,20 @@ extension Bundle {
             return "com.spotify.client"
         case "Brave Browser":
             return "com.brave.Browser"
+        case "Safari":
+            return "com.apple.safari"
+        case "Zen Browser":
+            return "org.mozilla.com.zen.browser"
+        case "Firefox":
+            return "org.mozilla.firefox"
+        case "Firefox Developer Edition":
+            return "org.mozilla.firefoxdeveloperedition"
         default:
             return nil
         }
     }
 }
 
-// Update ContentView to handle multiple displays
 struct ContentView: View {
     @StateObject private var statsController = StatsController()
     @StateObject private var mediaController = MediaController()
@@ -533,52 +538,87 @@ struct ContentView: View {
     @State private var isMouseInside = false
     @State private var uptime: String = getUptime()
     let username: String = NSFullUserName()
-    
-    // Add timer to update the uptime
+        
+    // Timer to update the uptime
     let uptimeTimer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
-    
-    private var profileSection: some View {
-        HStack(spacing: 12) {
-            // Profile image and name
-            HStack(spacing: 12) {
-                Circle()
-                    .fill(Color(Colors.accent))
-                    .frame(width: 40, height: 40)
-                    .overlay(
-                        Image(systemName: "person.fill")
-                            .foregroundColor(.white)
-                    )
-                
-                Text(username)
-                    .foregroundColor(.white)
-                    .font(.system(size: 12, weight: .semibold))
-            }
-            
-            Spacer()
-            
-            // Action buttons
-            HStack(spacing: 8) {
-                ActionButton(icon: "power", color: Color(NSColor(hex: "ed8796")!)) {
-                    powerOff()
-                }
-                
-                ActionButton(icon: "arrow.counterclockwise", color: Color(NSColor(hex: "f5a97f")!)) {
-                    restart()
-                }
-                
-                ActionButton(icon: "lock.fill", color: Color(NSColor(hex: "a6da95")!)) {
-                    lock()
-                }
-                
-                ActionButton(icon: "rectangle.portrait.and.arrow.right", color: Color(NSColor(hex: "8aadf4")!)) {
-                    logout()
-                }
-            }
+
+       // Function to load the user profile image
+    private func getUserProfileImage() -> NSImage? {
+        let username = NSUserName()
+        
+        // Check for custom profile picture
+        if let imagePath = try? FileManager.default.contentsOfDirectory(atPath: "/Users/\(username)/Library/UserPictures").first {
+            return NSImage(contentsOfFile: "/Users/\(username)/Library/UserPictures/\(imagePath)")
         }
-        .padding(30)
-        .padding(.top, 5)
+        
+        return nil
+    } 
+
+    private var profileSection: some View {
+        VStack(spacing: 2) {
+            HStack(spacing: 0) {
+                // Profile image and name
+                HStack(spacing: 4) {
+                    // Profile Image
+                    if let profileImage = getUserProfileImage() {
+                        Image(nsImage: profileImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 30, height: 30)
+                            .clipShape(Circle())
+                            .overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 2))
+                    } else {
+                        // Fallback Circle
+                        Circle()
+                            .fill(Color(Colors.accent))
+                            .frame(width: 40, height: 40)
+                            .overlay(
+                                Image(systemName: "person.fill")
+                                    .foregroundColor(.white)
+                            )
+                    }
+                    
+                        // Username with dynamic adjustments
+                    Text(username)
+                        .foregroundColor(.white)
+                        .font(.system(size: 10, weight: .semibold)) // Adjust font size based on length
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(2) // Limit to two lines if necessary
+                        .frame(maxWidth: .infinity, alignment: .leading) // Allow full width usage
+                }
+                
+                Spacer()
+
+                // Action buttons
+                HStack(spacing: 8) {
+                    ActionButton(icon: "power", color: Color(Colors.red)) {
+                        powerOff()
+                    }
+                    
+                    ActionButton(icon: "arrow.counterclockwise", color: Color(Colors.orange)) {
+                        restart()
+                    }
+                    
+                    ActionButton(icon: "lock.fill", color: Color(Colors.green)) {
+                        lock()
+                    }
+                    
+                    ActionButton(icon: "rectangle.portrait.and.arrow.right", color: Color(Colors.blue)) {
+                        logout()
+                    }
+                }
+            }
+            .padding(.horizontal, 30)
+            .padding(.vertical, 10)
+            .padding(.top, 25)
+            
+            Divider()
+                .background(Color.white.opacity(0.1))
+                .padding(.horizontal, 20)
+                .padding(.vertical, 15)
+        }
     }
-    
+
     private var mediaPlayerSection: some View {
         Card(
             content: AnyView(
@@ -617,7 +657,7 @@ struct ContentView: View {
                                 .lineLimit(1)
                         }
                         
-                        Spacer()
+                        // Spacer()
                         
                         // Media controls
                         HStack(spacing: 20) {
@@ -634,7 +674,7 @@ struct ContentView: View {
                     }
                     .padding(.horizontal, 16)
                 }
-                .frame(height: 110) // Increased height
+                .frame(height: 110) 
             ),
             backgroundColor: Color(Colors.cardBackground),
             padding: EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0),
@@ -643,49 +683,78 @@ struct ContentView: View {
         .padding(.horizontal, 30)
     }
 
+
     var body: some View {
         ZStack {
-            Color(Colors.panelBackground)
-            
-            VStack(spacing: 16) {
+            // Blurred background using VisualEffectView
+            VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
+                .edgesIgnoringSafeArea(.all)
+
+            VStack(spacing: 0) {  // Remove default spacing
                 profileSection
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(Colors.cardBackground).opacity(0.5))
+                            .blur(radius: 15)
+                    )
+                    .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 2)
+
                 mediaPlayerSection
-                
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(Colors.cardBackground).opacity(0.5))
+                            .blur(radius: 15)
+                    )
+                    .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 2)
+
                 LazyVGrid(columns: [
-                    // GridItem(.flexible(), spacing: -10),
-                    GridItem(.flexible(), spacing: -10),
-                    GridItem(.flexible(), spacing: -10),
-                    GridItem(.flexible(), spacing: -10)
-                ], spacing: -10) {
-                    // CircularProgressView(
-                    //     progress: statsController.batteryLevel,
-                    //     icon: statsController.isCharging ? "bolt.fill" : "battery.100.fill",
-                    //     color: Color(hex: "#4CD964") ?? .green
-                    // )
+                    GridItem(.flexible(), spacing: 15), // Adjust spacing as needed
+                    GridItem(.flexible(), spacing: 15)
+                ], spacing: 20) { // Adjust vertical spacing as needed
+                    CircularProgressView(
+                        progress: statsController.batteryLevel,
+                        icon: batteryIcon(level: statsController.batteryLevel, isCharging: statsController.isCharging),
+                        color: Color(Colors.green)
+                    )
                     CircularProgressView(
                         progress: statsController.volumeLevel,
                         icon: volumeIcon(level: statsController.volumeLevel, isMuted: statsController.isMuted),
-                        color: Color(hex: "#8AADF4") ?? .blue
-                    )
-                    CircularProgressView(
-                        progress: statsController.diskUsage,
-                        icon: "internaldrive",
-                        color: Color(Colors.diskUsage)
+                        color: Color(Colors.blue)
                     )
                     CircularProgressView(
                         progress: statsController.memoryUsage,
                         icon: "memorychip",
-                        color: Color(Colors.accent)
+                        color: Color(Colors.yellow)
                     )
+
+                    CircularProgressView(
+                        progress: statsController.cpuUsage,
+                        icon: "cpu",
+                        color: Color(Colors.orange)
+                    )
+                    // CircularProgressView(
+                    //     progress: statsController.diskUsage,
+                    //     icon: "internaldrive",
+                    //     color: Color(Colors.red)
+                    // )
                 }
-                .padding(.horizontal, 10)
-                
-                Spacer()
+                .padding(.horizontal, 30)
+                .padding(.vertical, 20)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(Colors.cardBackground).opacity(0.5))
+                        .blur(radius: 15)
+                )
+                .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 2)
             }
-            
+
             mouseTrackingOverlay
         }
         .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(Colors.green), lineWidth: 4)
+        )
         .onReceive(uptimeTimer) { _ in
             uptime = getUptime()
         }
@@ -720,6 +789,23 @@ struct ContentView: View {
             return "speaker.wave.3.fill"
         }
     }
+
+    private func batteryIcon(level: Double, isCharging: Bool) -> String {
+        if isCharging {
+            return "battery.100.bolt"
+        } else {
+            switch level {
+            case 0..<0.25:
+                return "battery.25"
+            case 0.25..<0.5:
+                return "battery.50"
+            case 0.5..<0.75:
+                return "battery.75"
+            default:
+                return "battery.100"
+            }
+        }
+}
 }
 
 // Add this extension for layer animations
@@ -742,31 +828,43 @@ app.run()
 
 class StatsController: ObservableObject {
     @Published private(set) var memoryUsage: Double = 0.0
-    @Published private(set) var diskUsage: Double = 0.0
+    // @Published private(set) var diskUsage: Double = 0.0
+    @Published private(set) var cpuUsage: Double = 0.0
     @Published private(set) var batteryLevel: Double = 0.0
     @Published private(set) var isCharging: Bool = false
     @Published private(set) var volumeLevel: Double = 0.0
     @Published private(set) var isMuted: Bool = false
     
-    private var timer: Timer?
+    private var generalTimer: Timer? // Declare the general timer
+    private var cpuTimer: Timer? // Declare the CPU timer
+    private var previousTicks: (user: Float, system: Float, idle: Float, nice: Float)?
+
     
-    init() {
-        timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
-            self?.updateStats()
+       init() {
+        // General stats updated every second
+        generalTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.updateGeneralStats()
         }
-        updateStats()
+        updateGeneralStats()
+
+        // CPU usage updated more frequently
+        cpuTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            self?.updateCPUUsage()
+        }
+        updateCPUUsage()
     }
-    
-    private func updateStats() {
+
+    private func updateGeneralStats() {
         updateMemoryUsage()
-        updateDiskUsage()
+        // updateDiskUsage()
         updateBatteryStatus()
         updateVolumeLevel()
     }
-    
+
     private func updateMemoryUsage() {
         var stats = vm_statistics64()
-        var size = mach_msg_type_number_t(MemoryLayout<vm_statistics64>.stride / MemoryLayout<integer_t>.stride)
+        var size = mach_msg_type_number_t(MemoryLayout<vm_statistics64>.size / MemoryLayout<integer_t>.size)
+        
         let result = withUnsafeMutablePointer(to: &stats) { pointer in
             pointer.withMemoryRebound(to: integer_t.self, capacity: Int(size)) { pointer in
                 host_statistics64(mach_host_self(), HOST_VM_INFO64, pointer, &size)
@@ -774,34 +872,78 @@ class StatsController: ObservableObject {
         }
         
         if result == KERN_SUCCESS {
-            let total = Double(stats.active_count + stats.inactive_count + stats.wire_count + stats.free_count)
-            let used = Double(stats.active_count + stats.inactive_count + stats.wire_count)
-            let usage = used / total
+            let pageSize = vm_kernel_page_size // Memory page size in bytes
+            let total = Double(stats.active_count + stats.inactive_count + stats.wire_count + stats.free_count) * Double(pageSize)
+            let used = Double(stats.active_count + stats.wire_count) * Double(pageSize) // Consider only active and wired memory as "used"
             
             DispatchQueue.main.async {
-                self.memoryUsage = usage
+                self.memoryUsage = used / total // Used as a fraction of total
+            }
+        } else {
+            print("Failed to fetch VM statistics, error code: \(result)")
+        }
+    } 
+
+    // private func updateDiskUsage() {
+    //     let fileURL = URL(fileURLWithPath: "/")
+    //     do {
+    //         let values = try fileURL.resourceValues(forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityKey])
+    //         if let total = values.volumeTotalCapacity,
+    //            let available = values.volumeAvailableCapacity {
+    //             let used = Double(total - available)
+    //             let usage = used / Double(total)
+    //             
+    //             DispatchQueue.main.async {
+    //                 self.diskUsage = usage
+    //             }
+    //         }
+    //     } catch {
+    //         print("Error getting disk usage: \(error)")
+    //     }
+    // }
+
+    private func updateCPUUsage() {
+        var hostInfo = host_cpu_load_info()
+        var size = mach_msg_type_number_t(MemoryLayout.size(ofValue: hostInfo) / MemoryLayout<Int32>.size)
+        let result = withUnsafeMutablePointer(to: &hostInfo) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(size)) {
+                host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO, $0, &size)
             }
         }
-    }
-    
-    private func updateDiskUsage() {
-        let fileURL = URL(fileURLWithPath: "/")
-        do {
-            let values = try fileURL.resourceValues(forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityKey])
-            if let total = values.volumeTotalCapacity,
-               let available = values.volumeAvailableCapacity {
-                let used = Double(total - available)
-                let usage = used / Double(total)
+        
+        if result == KERN_SUCCESS {
+            let user = Float(hostInfo.cpu_ticks.0)
+            let system = Float(hostInfo.cpu_ticks.1)
+            let idle = Float(hostInfo.cpu_ticks.2)
+            let nice = Float(hostInfo.cpu_ticks.3)
+            
+            if let previous = previousTicks {
+                let userDiff = user - previous.user
+                let systemDiff = system - previous.system
+                let idleDiff = idle - previous.idle
+                let niceDiff = nice - previous.nice
                 
-                DispatchQueue.main.async {
-                    self.diskUsage = usage
+                let totalDiff = userDiff + systemDiff + idleDiff + niceDiff
+                
+                if totalDiff > 0 {
+                    let usage = (userDiff + systemDiff + niceDiff) / totalDiff
+                    DispatchQueue.main.async {
+                        self.cpuUsage = Double(usage)
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        self.cpuUsage = 0.0 // Default value when no usage can be calculated
+                    }
                 }
             }
-        } catch {
-            print("Error getting disk usage: \(error)")
+            
+            // Save the current values for the next calculation
+            previousTicks = (user: user, system: system, idle: idle, nice: nice)
+        } else {
+            print("Failed to fetch CPU statistics: \(result)")
         }
     }
-    
+
     private func updateBatteryStatus() {
         if let powerSource = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
            let sources = IOPSCopyPowerSourcesList(powerSource)?.takeRetainedValue() as? [CFTypeRef] {
@@ -875,7 +1017,8 @@ class StatsController: ObservableObject {
     }
     
     deinit {
-        timer?.invalidate()
+        generalTimer?.invalidate()
+        cpuTimer?.invalidate()
     }
 }
 
@@ -1182,8 +1325,8 @@ struct ActionButton: View {
         Button(action: action) {
             Image(systemName: icon)
                 .foregroundColor(color)
-                .font(.system(size: 14))
-                .frame(width: 32, height: 32)
+                .font(.system(size: 13))
+                .frame(width: 30, height: 30)
                 .background(Color(Colors.cardBackground))
                 .cornerRadius(8)
         }
@@ -1241,7 +1384,7 @@ struct MediaControlButton: View {
     }
 }
 
-// Add WeatherController
+// Weather Controller using OpenWeatherMap API
 class WeatherController: ObservableObject {
     @Published var currentTemp: Double = 0
     @Published var feelsLike: Double = 0
@@ -1251,15 +1394,25 @@ class WeatherController: ObservableObject {
     @Published var forecast: [(day: String, high: Double, low: Double, icon: String)] = []
     
     private var timer: Timer?
-    private let weatherIconMap: [Int: String] = [
-        1000: "sun.max.fill",        // Clear
-        1003: "cloud.sun.fill",      // Partly cloudy
-        1006: "cloud.fill",          // Cloudy
-        1009: "smoke.fill",          // Overcast
-        1030: "cloud.fog.fill",      // Mist
-        1063: "cloud.drizzle.fill",  // Rain
-        1066: "cloud.snow.fill",     // Snow
-        // Add more mappings as needed
+    private let weatherIconMap: [String: String] = [
+        "01d": "sun.max.fill",         // Clear sky day
+        "01n": "moon.stars.fill",      // Clear sky night
+        "02d": "cloud.sun.fill",       // Few clouds day
+        "02n": "cloud.moon.fill",      // Few clouds night
+        "03d": "cloud.fill",           // Scattered clouds
+        "03n": "cloud.fill",
+        "04d": "smoke.fill",           // Broken clouds
+        "04n": "smoke.fill",
+        "09d": "cloud.drizzle.fill",   // Shower rain
+        "09n": "cloud.drizzle.fill",
+        "10d": "cloud.rain.fill",      // Rain
+        "10n": "cloud.rain.fill",
+        "11d": "cloud.bolt.rain.fill", // Thunderstorm
+        "11n": "cloud.bolt.rain.fill",
+        "13d": "cloud.snow.fill",      // Snow
+        "13n": "cloud.snow.fill",
+        "50d": "cloud.fog.fill",       // Mist
+        "50n": "cloud.fog.fill"
     ]
     
     init() {
@@ -1273,9 +1426,9 @@ class WeatherController: ObservableObject {
     private func updateWeather() {
         // Get the absolute path to the .env file
         let homeDirectory = FileManager.default.homeDirectoryForCurrentUser
-        let envPath = homeDirectory.appendingPathComponent(".config/sketchybar/helpers/event_providers/apple_menu/.env").path
+        let envPath = homeDirectory.appendingPathComponent(".config/sketchybar/helpers/event_providers/.env").path
         
-        print("Looking for .env file at:", envPath)  // Debug print
+        print("Looking for .env file at:", envPath)
         
         guard let envContent = try? String(contentsOfFile: envPath, encoding: .utf8) else {
             print("Error: Could not load .env file from \(envPath)")
@@ -1288,10 +1441,10 @@ class WeatherController: ObservableObject {
         var city = ""
         
         for line in lines {
-            if line.starts(with: "WEATHER_API_KEY=") {
-                apiKey = String(line.dropFirst("WEATHER_API_KEY=".count))
-            } else if line.starts(with: "WEATHER_CITY=") {
-                city = String(line.dropFirst("WEATHER_CITY=".count))
+            if line.starts(with: "OPEN_WEATHER_API_KEY=") {
+                apiKey = String(line.dropFirst("OPEN_WEATHER_API_KEY=".count))
+            } else if line.starts(with: "CITY=") {
+                city = String(line.dropFirst("CITY=".count))
             }
         }
         
@@ -1306,41 +1459,63 @@ class WeatherController: ObservableObject {
             return
         }
         
-        let urlString = "http://api.weatherapi.com/v1/forecast.json?key=\(apiKey)&q=\(encodedCity)&days=5&aqi=no&units=imperial"
-        
+        let urlString = "https://api.openweathermap.org/data/2.5/forecast?q=\(encodedCity)&appid=\(apiKey)&units=metric"
+
         guard let url = URL(string: urlString) else {
             print("Error: Could not create URL from string")
-            return 
+            return
         }
-        
         
         URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
             guard let data = data else { return }
             
-            
             do {
                 let decoder = JSONDecoder()
-                let weatherData = try decoder.decode(WeatherResponse.self, from: data)
+                let weatherData = try decoder.decode(OpenWeatherResponse.self, from: data)
                 
                 DispatchQueue.main.async {
-                    // Update the published properties with Fahrenheit values
-                    self?.currentTemp = weatherData.current.temp_f
-                    self?.feelsLike = weatherData.current.feelslike_f
-                    self?.humidity = weatherData.current.humidity
-                    self?.condition = weatherData.current.condition.text
-                    
-                    // Update weather icon based on condition code
-                    if let iconCode = self?.weatherIconMap[weatherData.current.condition.code] {
-                        self?.weatherIcon = iconCode
-                    }
-                    
-                    self?.forecast = weatherData.forecast.forecastday.map { day in
-                        return (
-                            day: day.date,
-                            high: day.day.maxtemp_f,
-                            low: day.day.mintemp_f,
-                            icon: self?.weatherIconMap[day.day.condition.code] ?? "sun.max.fill"
-                        )
+                    if let currentWeather = weatherData.list.first {
+                        self?.currentTemp = currentWeather.main.temp
+                        self?.feelsLike = currentWeather.main.feels_like
+                        self?.humidity = currentWeather.main.humidity
+                        self?.condition = currentWeather.weather.first?.description.capitalized ?? ""
+                        
+                        // Update weather icon
+                        if let iconCode = currentWeather.weather.first?.icon,
+                           let iconName = self?.weatherIconMap[iconCode] {
+                            self?.weatherIcon = iconName
+                        }
+                        
+                        // Process 5-day forecast
+                        // Group forecasts by day and get min/max temperatures
+                        var dailyForecasts: [String: (min: Double, max: Double, icon: String)] = [:]
+                        let dateFormatter = DateFormatter()
+                        dateFormatter.dateFormat = "yyyy-MM-dd"
+                        
+                        for forecast in weatherData.list {
+                            let date = Date(timeIntervalSince1970: Double(forecast.dt))
+                            let dateString = dateFormatter.string(from: date)
+                            
+                            let temp = forecast.main.temp
+                            let icon = forecast.weather.first?.icon ?? "01d"
+                            
+                            if let existing = dailyForecasts[dateString] {
+                                dailyForecasts[dateString] = (
+                                    min: min(existing.min, temp),
+                                    max: max(existing.max, temp),
+                                    icon: icon
+                                )
+                            } else {
+                                dailyForecasts[dateString] = (min: temp, max: temp, icon: icon)
+                            }
+                        }
+                        
+                        // Convert to array and sort by date
+                        self?.forecast = dailyForecasts
+                            .sorted { $0.key < $1.key }
+                            .prefix(5)
+                            .map { (day: $0.key, high: $0.value.max, low: $0.value.min,
+                                   icon: self?.weatherIconMap[$0.value.icon] ?? "sun.max.fill") }
                     }
                 }
             } catch {
@@ -1368,7 +1543,7 @@ struct WeatherView: View {
                     // Right side - Temperature and condition
                     VStack(alignment: .trailing, spacing: 4) {
                         // Changed °C to °F
-                        Text("\(Int(weatherController.currentTemp))°F")
+                        Text("\(Int(weatherController.currentTemp))°C")
                             .font(.system(size: 32, weight: .medium))
                             .foregroundColor(.white)
                         
@@ -1387,166 +1562,120 @@ struct WeatherView: View {
     }
 }
 
-// Add these structs to decode the JSON response
-struct WeatherResponse: Codable {
-    let current: Current
-    let forecast: Forecast
+// OpenWeatherMap API Response Structures
+struct OpenWeatherResponse: Codable {
+    let list: [WeatherData]
 }
 
-struct Current: Codable {
-    let temp_f: Double
-    let feelslike_f: Double
+struct WeatherData: Codable {
+    let dt: Int
+    let main: MainWeather
+    let weather: [WeatherCondition]
+}
+
+struct MainWeather: Codable {
+    let temp: Double
+    let feels_like: Double
     let humidity: Int
-    let condition: Condition
 }
 
-struct Condition: Codable {
-    let code: Int
-    let text: String
+struct WeatherCondition: Codable {
+    let description: String
+    let icon: String
 }
 
-struct Forecast: Codable {
-    let forecastday: [ForecastDay]
-}
 
-struct ForecastDay: Codable {
-    let date: String
-    let day: Day
-}
-
-struct Day: Codable {
-    let maxtemp_f: Double
-    let mintemp_f: Double
-    let condition: Condition
-}
-
-// Add a helper function to get day name from date string
-private func getDayName(from dateString: String) -> String {
-    let dateFormatter = DateFormatter()
-    dateFormatter.dateFormat = "yyyy-MM-dd"
-    
-    guard let date = dateFormatter.date(from: dateString) else { return "" }
-    
-    dateFormatter.dateFormat = "EEE" // "EEE" gives abbreviated day name (Mon, Tue, etc.)
-    return dateFormatter.string(from: date)
-}
-
-// Move CalendarView out of ContentView and place it at file level
-struct CalendarView: View {
+// First, let's separate the calendar content into a simpler view
+struct CalendarContentView: View {
     private let weekDays = ["S", "M", "T", "W", "T", "F", "S"]
-    private let date: Date
-    
-    init() {
-        // Get date from sketchybar's date item
-        let dateTask = Process()
-        dateTask.launchPath = "/usr/bin/env"
-        dateTask.arguments = ["sketchybar", "--query", "date"]
-        
-        let datePipe = Pipe()
-        dateTask.standardOutput = datePipe
-        dateTask.launch()
-        
-        let dateData = datePipe.fileHandleForReading.readDataToEndOfFile()
-        dateTask.waitUntilExit()
-        
-        if let dateInfo = try? JSONSerialization.jsonObject(with: dateData, options: []) as? [String: Any],
-           let dateString = dateInfo["label"] as? String {
-            // Parse the date string from sketchybar
-            let formatter = DateFormatter()
-            formatter.dateFormat = "E MMM d"  // Format matching sketchybar's date format
-            if let parsedDate = formatter.date(from: dateString) {
-                self.date = parsedDate
-            } else {
-                self.date = Date()  // Fallback to current date if parsing fails
-            }
-        } else {
-            self.date = Date()  // Fallback to current date if query fails
-        }
-    }
+    let date: Date
     
     var body: some View {
-        GeometryReader { geometry in
-            let spacing = (geometry.size.width - 30 - (20 * 7)) / 6 // Calculate dynamic spacing
+        VStack(spacing: 12) {
+            // Month and Year
+            Text(date.formatted(.dateTime.month(.wide).year()))
+                .foregroundColor(.white)
+                .font(.system(size: 14, weight: .semibold))
             
-            VStack(spacing: 12) {
-                // Month and Year
-                Text(date.formatted(.dateTime.month(.wide).year()))
-                    .foregroundColor(.white)
-                    .font(.system(size: 14, weight: .semibold))
-                
-                // Week days
-                HStack(spacing: spacing) {
-                    ForEach(weekDays, id: \.self) { day in
-                        Text(day)
-                            .font(.system(size: 12))
-                            .foregroundColor(day == "S" ? Color(hex: "#ed8796") ?? .red : .white.opacity(0.7))
-                            .frame(width: 20)
-                    }
+            // Week days
+            HStack(spacing: 8) {
+                ForEach(weekDays, id: \.self) { day in
+                    Text(day)
+                        .font(.system(size: 12))
+                        .foregroundColor(day == "S" ? Color(Colors.red) : Color.white)
+                        .frame(width: 20)
                 }
-                
-                // Calendar grid
-                let days = generateDaysInMonth()
-                VStack(spacing: 8) {
-                    ForEach(0..<6) { row in
-                        HStack(spacing: spacing) {
-                            ForEach(0..<7) { column in
-                                let index = row * 7 + column
-                                if index < days.count {
-                                    let day = days[index]
-                                    Text(day.number)
-                                        .font(.system(size: 12))
-                                        .foregroundColor(day.isCurrentMonth ? 
-                                            (day.isToday ? .white : .white.opacity(0.7)) : 
-                                            .white.opacity(0.3))
-                                        .frame(width: 20)
-                                        .fontWeight(day.isToday ? .bold : .regular)
-                                } else {
-                                    Text("")
-                                        .frame(width: 20)
-                                }
-                            }
+            }
+            
+            // Calendar grid
+            CalendarGridView(date: date)
+        }
+        .padding(.vertical, 16)
+        .padding(.horizontal, 15)
+    }
+}
+
+// Separate grid view
+struct CalendarGridView: View {
+    let date: Date
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            ForEach(0..<6) { row in
+                HStack(spacing: 8) {
+                    ForEach(0..<7) { column in
+                        let index = row * 7 + column
+                        if index < days.count {
+                            DayCell(day: days[index])
+                        } else {
+                            Text("")
+                                .frame(width: 20)
                         }
                     }
                 }
             }
-            .padding(.vertical, 16)
-            .padding(.horizontal, 15)
-            .frame(maxWidth: .infinity)
         }
-        .frame(height: 220)
     }
     
-    private struct DayItem {
-        let number: String
-        let isCurrentMonth: Bool
-        let isToday: Bool
+    private var days: [DayItem] {
+        generateDaysInMonth()
     }
     
     private func generateDaysInMonth() -> [DayItem] {
         var days: [DayItem] = []
+        let calendar = Calendar.current
         
-        // Get the first day of the month
-        let firstDayOfMonth = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: date))!
+        let firstDayOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: date))!
+        let firstWeekday = calendar.component(.weekday, from: firstDayOfMonth) - 1
         
-        // Get the weekday of the first day (0 = Sunday)
-        let firstWeekday = Calendar.current.component(.weekday, from: firstDayOfMonth) - 1
+        let previousMonth = calendar.date(byAdding: .month, value: -1, to: firstDayOfMonth)!
+        let daysInPreviousMonth = calendar.range(of: .day, in: .month, for: previousMonth)!.count
         
-        // Add days from previous month
-        let previousMonth = Calendar.current.date(byAdding: .month, value: -1, to: firstDayOfMonth)!
-        let daysInPreviousMonth = Calendar.current.range(of: .day, in: .month, for: previousMonth)!.count
-        for day in (daysInPreviousMonth - firstWeekday + 1)...daysInPreviousMonth {
-            days.append(DayItem(number: "\(day)", isCurrentMonth: false, isToday: false))
+        // Previous month days
+        // for day in (daysInPreviousMonth - firstWeekday + 1)...daysInPreviousMonth {
+        //     days.append(DayItem(number: "\(day)", isCurrentMonth: false, isToday: false))
+        // }
+
+        // Previous month days
+        if firstWeekday > 0 {
+            let startDay = max(1, daysInPreviousMonth - firstWeekday + 1)
+            for day in startDay...daysInPreviousMonth {
+                days.append(DayItem(number: "\(day)", isCurrentMonth: false, isToday: false))
+            }
         }
         
-        // Add days from current month
-        let daysInMonth = Calendar.current.range(of: .day, in: .month, for: firstDayOfMonth)!.count
-        let currentDay = Calendar.current.component(.day, from: date)
+        // Current month days
+        let daysInMonth = calendar.range(of: .day, in: .month, for: firstDayOfMonth)!.count
+        let currentDay = calendar.component(.day, from: date)
+        
         for day in 1...daysInMonth {
-            days.append(DayItem(number: "\(day)", isCurrentMonth: true, isToday: day == currentDay))
+            days.append(DayItem(number: "\(day)", 
+                              isCurrentMonth: true, 
+                              isToday: day == currentDay))
         }
         
-        // Add days from next month
-        let remainingDays = 42 - days.count // 6 rows * 7 days = 42
+        // Next month days
+        let remainingDays = 42 - days.count
         for day in 1...remainingDays {
             days.append(DayItem(number: "\(day)", isCurrentMonth: false, isToday: false))
         }
@@ -1555,92 +1684,204 @@ struct CalendarView: View {
     }
 }
 
-// Add this new struct for panel titles
+// Simplified day cell
+struct DayCell: View {
+    let day: DayItem
+    
+    var body: some View {
+        Text(day.number)
+            .font(.system(size: 12))
+            .foregroundColor(
+                day.isCurrentMonth 
+                    ? (day.isToday ? .white : .white.opacity(0.7)) 
+                    : .white.opacity(0.3)
+            )
+            .frame(width: 20)
+            .fontWeight(day.isToday ? .bold : .regular)
+    }
+}
+
+struct CalendarView: View {
+    @State private var date: Date = Date()
+
+    var body: some View {
+        CalendarContentView(date: date)
+            .onAppear(perform: fetchDate)
+    }
+
+    private func fetchDate() {
+        self.date = Date()
+    }
+}
+
+struct ClockView: View {
+    @State private var currentTime = ""
+
+    var body: some View {
+        Card(
+            content: AnyView(
+                HStack {
+                    // Left side - Clock icon with padding
+                    Image(systemName: "clock.fill")
+                        .font(.system(size: 32))
+                        .foregroundColor(.white)
+                        .padding(.leading, -20) // Add padding to move it towards the border
+
+                    Spacer()
+
+                    // Right side - Current time with padding
+                    Text(currentTime)
+                        .font(.system(size: 32, weight: .medium))
+                        .foregroundColor(.white)
+                        .padding(.trailing, -20) // Add padding to move it towards the border
+                }
+            ),
+            backgroundColor: Color(Colors.cardBackground),
+            padding: EdgeInsets(top: 20, leading: 20, bottom: 20, trailing: 20),
+            backgroundImage: nil
+        )
+        .padding(.horizontal, 20)
+        .onAppear(perform: updateTime)
+        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
+            updateTime()
+        }
+    }
+
+    private func updateTime() {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        currentTime = formatter.string(from: Date())
+    }
+}
+
+// Add this new strict for panel titles
 struct PanelTitle: View {
     let title: String
     
     var body: some View {
-        Text(title)
-            .font(.system(size: 20, weight: .semibold))
-            .foregroundColor(Color(hex: "#ed8796") ?? .white)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 30)
-            .padding(.top, 25)
-            .padding(.bottom, 10)
+        VStack {
+            Text(title)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(Color(Colors.red))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 30)
+                .padding(.top, 25)
+                .padding(.bottom, 10)
+            
+            // Grey divider
+            Rectangle()
+                .fill(Color.gray.opacity(0.5)) // Set the color and opacity of the divider
+                .frame(height: 1) // Set height of the divider
+                .padding(.horizontal, 30) // Add horizontal padding to align with title
+        }
     }
 }
 
-// Add new CalendarPanelView
 struct CalendarPanelView: View {
-    @StateObject private var statsController = StatsController()
     @StateObject private var weatherController = WeatherController()
     @State private var isMouseInside = false
-    
+
     var body: some View {
         ZStack {
-            Color(Colors.panelBackground)
-            
+            // Blurred background using VisualEffectView
+            VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
+                .edgesIgnoringSafeArea(.all)
+
             VStack(spacing: 16) {
-                // Add title
-                PanelTitle(title: "Time And Weather")
-                
-                // Calendar section
+                PanelTitle(title: "Date And Weather Info")
+
+                // Calendar section with blur and shadow
                 Card(
-                    content: AnyView(CalendarView()),
+                    content: AnyView(
+                        CalendarView()
+                            .frame(maxWidth: .infinity)
+                    ),
                     backgroundColor: Color(Colors.cardBackground),
                     padding: EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0),
                     backgroundImage: nil
                 )
                 .padding(.horizontal, 30)
-                
-                // Weather section
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(Colors.cardBackground).opacity(0.5))
+                        .blur(radius: 10)
+                )
+                .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 2)
+
+                // Clock section with blur and shadow
+                Card(
+                    content: AnyView(ClockView()),
+                    backgroundColor: Color(Colors.cardBackground),
+                    padding: EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0),
+                    backgroundImage: nil
+                )
+                .padding(.horizontal, 30)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(Colors.cardBackground).opacity(0.5))
+                        .blur(radius: 10)
+                )
+                .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 2)
+
+                // Weather section with shadow
                 WeatherView(weatherController: weatherController)
-                .padding(.horizontal, 10)
-                
+                    .padding(.horizontal, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(Colors.cardBackground).opacity(0.5))
+                            .blur(radius: 10)
+                    )
+                    .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 2)
+
                 Spacer()
             }
-            
             mouseTrackingOverlay
         }
         .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(Colors.green), lineWidth: 4)
+        )
     }
-    
+
     private var mouseTrackingOverlay: some View {
         MouseTrackingViewRepresentable(
-            onMouseEntered: {
-                isMouseInside = true
-            },
-            onMouseExited: {
-                isMouseInside = false
-            }
+            onMouseEntered: { isMouseInside = true },
+            onMouseExited: { isMouseInside = false }
         )
         .allowsHitTesting(false)
     }
 }
 
-// MARK: - Preview Provider
-#if DEBUG
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView()
-            .frame(width: 300, height: 400)
-            .preferredColorScheme(.dark)
+// Custom VisualEffectView
+struct VisualEffectView: NSViewRepresentable {
+    let material: NSVisualEffectView.Material
+    let blendingMode: NSVisualEffectView.BlendingMode
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let visualEffectView = NSVisualEffectView()
+        visualEffectView.material = material
+        visualEffectView.blendingMode = blendingMode
+        visualEffectView.state = .active
+        return visualEffectView
+    }
+
+    func updateNSView(_ visualEffectView: NSVisualEffectView, context: Context) {
+        visualEffectView.material = material
+        visualEffectView.blendingMode = blendingMode
     }
 }
 
-struct WeatherView_Previews: PreviewProvider {
-    static var previews: some View {
-        WeatherView(weatherController: WeatherController())
-            .frame(width: 280)
-            .preferredColorScheme(.dark)
-    }
+// Day item model
+struct DayItem {
+    let number: String
+    let isCurrentMonth: Bool
+    let isToday: Bool
 }
 
-struct CalendarView_Previews: PreviewProvider {
-    static var previews: some View {
-        CalendarView()
-            .frame(width: 280)
-            .preferredColorScheme(.dark)
+// Add Array extension for safe subscript access
+extension Array {
+    subscript(safe index: Int) -> Element? {
+        return indices.contains(index) ? self[index] : nil
     }
 }
-#endif
