@@ -38,7 +38,7 @@ local function show_menu()
         end
         
         -- Start new menu process
-        sbar.exec("~/.config/sketchybar/helpers/event_providers/apple_menu/bin/apple_menu app=menu &")
+        sbar.exec("~/.config/sketchybar/helpers/event_providers/apple_menu/bin/apple_menu &")
         menu_visible = true
     end
 end

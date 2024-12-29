@@ -4,4 +4,4 @@ all:
 	(cd hdd_load && $(MAKE))
 	(cd network_load && $(MAKE))
 	(cd media_player && $(MAKE))
-	(cd apple_menu && $(MAKE))
+	(cd apple_menu && chmod +x build.sh && ./build.sh)
