@@ -61,12 +61,12 @@ apple:subscribe("mouse.clicked", function(env)
 end)
 
 -- Add mouse.exited to hide menu when mouse leaves
-apple:subscribe("mouse.exited", function(env)
-    -- Add a small delay to allow clicking inside the menu
-    sbar.delay(0.5, function()
-        hide_menu()
-    end)
-end)
+-- apple:subscribe("mouse.exited", function(env)
+--     -- Add a small delay to allow clicking inside the menu
+--     sbar.delay(0.5, function()
+--         hide_menu()
+--     end)
+-- end)
 
 -- Add this to prevent window from closing when clicking inside it
 apple:subscribe("mouse.clicked.inside", function(env)

@@ -253,17 +253,142 @@ struct Task: Identifiable, Codable {
     }
 }
 
-struct TaskCard: View {
-    @State private var selectedTab = 0
-    @State private var tasks: [Task] = []
-    @State private var newTaskTitle = ""
-    @State private var isAddingTask = false
+struct TabButton: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
     
-    init() {
-        // Load saved tasks from UserDefaults
-        if let savedTasksData = UserDefaults.standard.data(forKey: "savedTasks"),
-           let decodedTasks = try? JSONDecoder().decode([Task].self, from: savedTasksData) {
-            _tasks = State(initialValue: decodedTasks)
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .foregroundColor(isSelected ? .white : .gray)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 16)
+                .background(isSelected ? Color.blue.opacity(0.3) : Color.clear)
+                .cornerRadius(8)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+struct TaskRow: View {
+    let task: Task
+    let onToggle: (Task) -> Void
+    let onDelete: (Task) -> Void
+    
+    var body: some View {
+        HStack {
+            Button(action: {
+                var updatedTask = task
+                updatedTask.isCompleted.toggle()
+                onToggle(updatedTask)
+            }) {
+                Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(task.isCompleted ? .green : .gray)
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            Text(task.title)
+                .foregroundColor(.white)
+                .strikethrough(task.isCompleted)
+            
+            Spacer()
+            
+            Button(action: {
+                onDelete(task)
+            }) {
+                Image(systemName: "trash.fill")
+                    .foregroundColor(.red.opacity(0.7))
+                    .font(.system(size: 14))
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+struct TaskCard: View {
+    @State private var tasks: [Task] = []
+    @State private var selectedTab = 0
+    @State private var showingInput = false
+    @State private var taskInputView: TaskInputView?
+    
+    var body: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 12) {
+                // Title and Add Button
+                HStack {
+                    Text("To-Dos")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(.white)
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        showingInput.toggle()
+                    }) {
+                        Image(systemName: "plus")
+                            .foregroundColor(.white)
+                            .frame(width: 30, height: 30)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    Button(action: {
+                        UserDefaults.standard.removeObject(forKey: "savedTasks")
+                        tasks.removeAll()
+                    }) {
+                        Image(systemName: "trash")
+                            .foregroundColor(.white)
+                            .frame(width: 30, height: 30)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+                
+                // Tab Buttons
+                HStack(spacing: 20) {
+                    TabButton(title: "Active", isSelected: selectedTab == 0) {
+                        selectedTab = 0
+                    }
+                    
+                    TabButton(title: "Completed", isSelected: selectedTab == 1) {
+                        selectedTab = 1
+                    }
+                }
+                
+                // Task List
+                ScrollView {
+                    VStack(spacing: 8) {
+                        let displayTasks = selectedTab == 0 ? activeTasks : completedTasks
+                        if displayTasks.isEmpty {
+                            Text(selectedTab == 0 ? "No Active Tasks" : "No Completed Tasks")
+                                .foregroundColor(.gray)
+                                .padding(.top, 20)
+                        } else {
+                            ForEach(displayTasks) { task in
+                                TaskRow(task: task, onToggle: { updatedTask in
+                                    if let index = tasks.firstIndex(where: { $0.id == updatedTask.id }) {
+                                        tasks[index] = updatedTask
+                                        saveTasks()
+                                    }
+                                }, onDelete: { taskToDelete in
+                                    if let index = tasks.firstIndex(where: { $0.id == taskToDelete.id }) {
+                                        tasks.remove(at: index)
+                                        saveTasks()
+                                    }
+                                })
+                            }
+                        }
+                    }
+                }
+                .frame(maxHeight: .infinity, alignment: .top)
+            }
+            .padding()
+        }
+        .onAppear {
+            if let savedTasksData = UserDefaults.standard.data(forKey: "savedTasks"),
+               let decodedTasks = try? JSONDecoder().decode([Task].self, from: savedTasksData) {
+                tasks = decodedTasks
+            }
         }
     }
     
@@ -280,144 +405,104 @@ struct TaskCard: View {
             UserDefaults.standard.set(encodedTasks, forKey: "savedTasks")
         }
     }
+}
+
+struct TimeCard: View {
+    @State private var currentTime = Date()
+    let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     
-    private func addNewTask() {
-        if !newTaskTitle.isEmpty {
-            tasks.append(Task(title: newTaskTitle))
-            saveTasks()
-            newTaskTitle = ""
-            isAddingTask = false
-        }
-    }
+    private let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE, dd MMMM"
+        return formatter
+    }()
+    
+    private let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
     
     var body: some View {
         Card {
-            VStack(spacing: 12) {
-                // Title and Add Button
-                HStack {
-                    Text("To-Dos")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundColor(.white)
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        isAddingTask.toggle()
-                        if !isAddingTask {
-                            newTaskTitle = ""
-                        }
-                    }) {
-                        Image(systemName: isAddingTask ? "xmark" : "plus")
-                            .foregroundColor(isAddingTask ? .red : .blue)
-                            .font(.system(size: 16, weight: .bold))
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    
-                    Button(action: {
-                        tasks.removeAll(where: { $0.isCompleted })
-                        saveTasks()
-                    }) {
-                        Image(systemName: "trash")
-                            .foregroundColor(.red)
-                            .font(.system(size: 16, weight: .bold))
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                }
+            VStack(spacing: 10) {
+                Text(timeFormatter.string(from: currentTime))
+                    .font(.system(size: 60, weight: .medium))
+                    .foregroundColor(.white)
                 
-                // Tabs
-                HStack {
-                    ForEach(["Active", "Completed"], id: \.self) { tab in
-                        Button(action: {
-                            selectedTab = tab == "Active" ? 0 : 1
-                            if isAddingTask {
-                                isAddingTask = false
-                                newTaskTitle = ""
-                            }
-                        }) {
-                            Text(tab)
-                                .foregroundColor(selectedTab == (tab == "Active" ? 0 : 1) ? .white : .gray)
-                                .padding(.vertical, 8)
-                                .padding(.horizontal, 16)
-                                .background(selectedTab == (tab == "Active" ? 0 : 1) ? Color.blue.opacity(0.3) : Color.clear)
-                                .cornerRadius(8)
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                    }
-                    Spacer()
-                }
-                
-                // Input field (now under tabs)
-                if isAddingTask && selectedTab == 0 {
-                    HStack {
-                        TextField("Enter task", text: $newTaskTitle)
-                            .textFieldStyle(PlainTextFieldStyle())
-                            .foregroundColor(.white)
-                            .padding(8)
-                            .background(Color.white.opacity(0.1))
-                            .cornerRadius(8)
-                            .onSubmit {
-                                addNewTask()
-                            }
-                        
-                        Button(action: addNewTask) {
-                            Image(systemName: "checkmark")
-                                .foregroundColor(.green)
-                                .font(.system(size: 16, weight: .bold))
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        .disabled(newTaskTitle.isEmpty)
-                    }
-                    .padding(.vertical, 4)
-                }
-                
-                // Task List
-                ScrollView {
-                    VStack(spacing: 8) {
-                        let displayTasks = selectedTab == 0 ? activeTasks : completedTasks
-                        if displayTasks.isEmpty {
-                            Text(selectedTab == 0 ? "No Active Tasks" : "No Completed Tasks")
-                                .foregroundColor(.gray)
-                                .padding(.top, 20)
-                        } else {
-                            ForEach(displayTasks) { task in
-                                HStack {
-                                    Button(action: {
-                                        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
-                                            tasks[index].isCompleted.toggle()
-                                            saveTasks()
-                                        }
-                                    }) {
-                                        Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                                            .foregroundColor(task.isCompleted ? .green : .gray)
-                                    }
-                                    .buttonStyle(PlainButtonStyle())
-                                    
-                                    Text(task.title)
-                                        .foregroundColor(.white)
-                                        .strikethrough(task.isCompleted)
-                                    
-                                    Spacer()
-                                    
-                                    Button(action: {
-                                        tasks.removeAll(where: { $0.id == task.id })
-                                        saveTasks()
-                                    }) {
-                                        Image(systemName: "trash.fill")
-                                            .foregroundColor(.red.opacity(0.7))
-                                            .font(.system(size: 14))
-                                    }
-                                    .buttonStyle(PlainButtonStyle())
-                                }
-                                .padding(.vertical, 4)
-                            }
-                        }
-                    }
-                }
-                .frame(maxHeight: 200)
+                Text(dateFormatter.string(from: currentTime))
+                    .font(.system(size: 20))
+                    .foregroundColor(.gray)
             }
             .padding()
         }
+        .onReceive(timer) { input in
+            currentTime = input
+        }
     }
+}
+
+class TaskInputView: NSView, NSTextFieldDelegate {
+    var onSubmit: ((String) -> Void)?
+    private var textField: NSTextField!
+    
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        setupTextField()
+    }
+    
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setupTextField()
+    }
+    
+    private func setupTextField() {
+        textField = NSTextField(frame: bounds)
+        textField.delegate = self
+        textField.placeholderString = "Enter task"
+        textField.backgroundColor = NSColor.white.withAlphaComponent(0.1)
+        textField.textColor = .white
+        textField.isBezeled = false
+        textField.drawsBackground = true
+        textField.focusRingType = .none
+        addSubview(textField)
+        
+        textField.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            textField.leadingAnchor.constraint(equalTo: leadingAnchor),
+            textField.trailingAnchor.constraint(equalTo: trailingAnchor),
+            textField.topAnchor.constraint(equalTo: topAnchor),
+            textField.bottomAnchor.constraint(equalTo: bottomAnchor)
+        ])
+    }
+    
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+            if let text = textField.stringValue.isEmpty ? nil : textField.stringValue {
+                onSubmit?(text)
+                textField.stringValue = ""
+            }
+            return true
+        }
+        return false
+    }
+    
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        window?.makeFirstResponder(textField)
+    }
+}
+
+struct TaskInputViewRepresentable: NSViewRepresentable {
+    var onSubmit: (String) -> Void
+    
+    func makeNSView(context: Context) -> TaskInputView {
+        let view = TaskInputView(frame: .zero)
+        view.onSubmit = onSubmit
+        return view
+    }
+    
+    func updateNSView(_ nsView: TaskInputView, context: Context) {}
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -431,8 +516,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Get the main screen's frame
         if let screen = NSScreen.main {
             let screenFrame = screen.frame
-            let windowWidth: CGFloat = 1500
-            let windowHeight: CGFloat = 1000
+            let windowWidth: CGFloat = 1200
+            let windowHeight: CGFloat = 800
             
             // Calculate center position
             let x = (screenFrame.width - windowWidth) / 2
@@ -446,6 +531,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 defer: false
             )
             
+            window?.isReleasedWhenClosed = false
             window?.level = .floating
             window?.backgroundColor = NSColor(red: 0x0D/255.0, green: 0x11/255.0, blue: 0x16/255.0, alpha: 1.0)
             
@@ -489,13 +575,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 struct ContentView: View {
-    let username = NSUserName()
-    let uptime = formatUptime(ProcessInfo.processInfo.systemUptime)
+    @State private var username = "paulknight"
+    @State private var uptime = "3h 24m"
     
     var body: some View {
         ZStack {
-            // Background with color
-            Color(red: 0x0D/255.0, green: 0x11/255.0, blue: 0x16/255.0)
+            // Background color
+            Color(NSColor(red: 0x0D/255.0, green: 0x11/255.0, blue: 0x16/255.0, alpha: 1.0))
                 .edgesIgnoringSafeArea(.all)
             
             // Main content
@@ -509,6 +595,7 @@ struct ContentView: View {
                             quote: "All our dreams can come true if we have the courage to pursue them",
                             author: "Walt Disney"
                         )
+                        .frame(height: 200)
                     }
                     .frame(maxWidth: .infinity)
                     
@@ -520,10 +607,8 @@ struct ContentView: View {
                     
                     // Right Column
                     VStack(spacing: 20) {
-                        Card {
-                            Text("Right Column")
-                                .foregroundColor(.white)
-                        }
+                        TimeCard()
+                        TimeCard()
                     }
                     .frame(maxWidth: .infinity)
                 }
@@ -531,7 +616,6 @@ struct ContentView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: 40))
     }
 }
 
