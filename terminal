@@ -1,0 +1,11 @@
+git checkout -b backup-branch 13d2b97190c04f548b01201ad977601e70e4ab5f 
+
+# First ensure you're on the backup branch
+git checkout backup-branch
+
+# Force push this branch as the new main 
+git push origin backup-branch:main -f 
+
+git fetch origin
+git checkout main
+git reset --hard origin/main 
