@@ -10,7 +10,8 @@ local volume_percent = sbar.add("item", "widgets.volume1", {
   label = {
     string = "??%",
     padding_left = -1,
-    font = { family = settings.font.numbers }
+    font = { family = settings.font.numbers },
+    color = colors.magenta
   },
 })
 
@@ -33,6 +34,7 @@ local volume_icon = sbar.add("item", "widgets.volume2", {
       style = settings.font.style_map["Regular"],
       size = 14.0,
     },
+    color = colors.magenta
   },
 })
 
@@ -40,7 +42,7 @@ local volume_bracket = sbar.add("bracket", "widgets.volume.bracket", {
   volume_icon.name,
   volume_percent.name
 }, {
-  background = { color = colors.bg1 },
+  background = { color = colors.transparent },
   popup = { align = "center" }
 })
 
@@ -63,7 +65,7 @@ local volume_slider = sbar.add("slider", popup_width, {
       drawing = true,
     },
   },
-  background = { color = colors.bg1, height = 2, y_offset = -20 },
+  background = { color = colors.transparent, height = 2, y_offset = -20 },
   click_script = 'osascript -e "set volume output volume $PERCENTAGE"'
 })
 

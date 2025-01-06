@@ -24,6 +24,7 @@ local hdd = sbar.add("item", "widgets.hdd" , 52, {
       family = settings.font.numbers,
       style = settings.font.style_map["Bold"],
     },
+    color = colors.yellow, 
     align = "right",
     padding_right = 0,
   },
@@ -48,6 +49,7 @@ local memory = sbar.add("item", "widgets.memory" , 42, {
       family = settings.font.numbers,
       style = settings.font.style_map["Bold"],
     },
+    color = colors.teal, 
     align = "right",
     padding_right = 0,
   },
@@ -72,6 +74,7 @@ local cpu = sbar.add("item", "widgets.cpu" , 42, {
       family = settings.font.numbers,
       style = settings.font.style_map["Bold"],
     },
+    color = colors.red,
     align = "right",
     padding_right = 0,
   },
@@ -107,7 +110,7 @@ end)
 
 -- Background around the cpu item
 sbar.add("bracket", "widgets.metrics.bracket", { cpu.name, memory.name, hdd.name }, {
-  background = { color = colors.bg1 }
+  background = { color = colors.transparent }
 })
 
 -- Background around the cpu item

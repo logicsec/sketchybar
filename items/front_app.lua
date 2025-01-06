@@ -14,6 +14,7 @@ local front_app = sbar.add("item", "front_app", {
 			style = settings.font.style_map["Semibold"],
 			size = 12,
 		},
+		padding_right = 10,
 	},
 	icon = {
 		background = {
@@ -21,14 +22,15 @@ local front_app = sbar.add("item", "front_app", {
 			image = {
 				scale = 0.75,
 				padding_right = settings.paddings,
-			},
-		},
+				padding_left = settings.paddings
+			}
+		}
 	},
     background = {
         color = colors.bg1,
         border_width = 0,
         height = 26,
-      },
+    },
 	updates = true,
 })
 

@@ -65,7 +65,7 @@ sbar.exec("aerospace list-workspaces --all --format '%{workspace}%{monitor-id}' 
             label = {
               drawing = true,
               string = space_name:match("[^/]+$") or space_name,
-              color = colors.white,
+              color = visible_set[space_name] and colors.black or colors.white,
               font = {
                 style = settings.font.style_map["SemiBold"],
                 size = 12.0,
@@ -76,7 +76,7 @@ sbar.exec("aerospace list-workspaces --all --format '%{workspace}%{monitor-id}' 
             padding_right = 1,
             padding_left = 1,
             background = {
-              color = visible_set[space_name] and colors.red or colors.bg1,
+              color = visible_set[space_name] and colors.teal or colors.bg1,
               border_width = 0,
               height = 26,
             },
@@ -111,9 +111,9 @@ sbar.exec("aerospace list-workspaces --all --format '%{workspace}%{monitor-id}' 
               icon = { color = colors.white },
               label = { 
                 drawing = true,
-                color = colors.white
+                color = visible_set[space_name] and colors.black or colors.white,
               },
-              background = { color = visible_set[space_name] and colors.red or colors.bg1 }
+              background = { color = visible_set[space_name] and colors.teal or colors.bg1, }
             })
           end)
         end)
