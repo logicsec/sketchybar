@@ -4,7 +4,7 @@ public struct SystemControlsCard: View {
     public init() {}
     
     public var body: some View {
-        Card {
+        Card(style: .secondary) {
             HStack(spacing: 16) {
                 // Power
                 Button(action: {}) {

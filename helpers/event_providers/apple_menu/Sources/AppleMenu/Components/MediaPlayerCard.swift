@@ -4,7 +4,7 @@ public struct MediaPlayerCard: View {
     public init() {}
     
     public var body: some View {
-        Card {
+        Card(style: .secondary) {
             HStack(spacing: 12) {
                 // Album art
                 Image(nsImage: NSImage(named: "albumArt") ?? NSImage())
