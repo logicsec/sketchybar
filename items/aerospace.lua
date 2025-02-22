@@ -76,7 +76,7 @@ sbar.exec("aerospace list-workspaces --all --format '%{workspace}%{monitor-id}' 
             padding_right = 1,
             padding_left = 1,
             background = {
-              color = visible_set[space_name] and colors.teal or colors.bg1,
+              color = visible_set[space_name] and colors.spaces.active or colors.bg1,
               border_width = 0,
               height = 26,
             },
@@ -113,7 +113,7 @@ sbar.exec("aerospace list-workspaces --all --format '%{workspace}%{monitor-id}' 
                 drawing = true,
                 color = visible_set[space_name] and colors.black or colors.white,
               },
-              background = { color = visible_set[space_name] and colors.teal or colors.bg1, }
+              background = { color = visible_set[space_name] and colors.spaces.active or colors.bg1, }
             })
           end)
         end)

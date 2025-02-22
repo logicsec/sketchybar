@@ -8,7 +8,7 @@ local function to_hex(color)
 end
 
 -- Padding item required because of bracket
-sbar.add("item", { position = "right", width = settings.group_paddings })
+-- sbar.add("item", { position = "right", width = settings.group_paddings })
 
 local time = sbar.add("item", "time", {
   icon = {
@@ -21,7 +21,7 @@ local time = sbar.add("item", "time", {
     },
   },
   label = {
-    color = colors.white,
+    color = colors.red,
     padding_right = 12,
     padding_left = 12,
     align = "right",
@@ -32,7 +32,7 @@ local time = sbar.add("item", "time", {
   padding_left = 1,
   padding_right = 1,
   background = {
-    color = colors.red,
+    color = colors.transparent,
     border_width = 0,
     corner_radius = 5,
     padding_right = 0
@@ -51,7 +51,7 @@ local date = sbar.add("item", "date", {
   },
   label = {
     color = colors.white,
-    padding_right = 12,
+    padding_right = 1,
     padding_left = 12,
     align = "right",
     font = { family = settings.font.numbers },
@@ -70,13 +70,13 @@ local date = sbar.add("item", "date", {
 
 sbar.add("bracket", "datetime", { date.name, time.name }, {
   background = {
-    color = colors.bg1
+    color = colors.transparent
   },
   padding_right = 0
 })
 
--- Padding item required because of bracket
-sbar.add("item", { position = "right", width = settings.group_paddings })
+-- -- Padding item required because of bracket
+-- sbar.add("item", { position = "right", width = 2 })
 
 -- Subscribe to update the time and date
 date:subscribe({ "forced", "routine", "system_woke" }, function(env)

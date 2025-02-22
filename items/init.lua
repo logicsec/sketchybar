@@ -6,7 +6,7 @@ require("items.menus")
 require("items.aerospace")
 
 -- Right items
-require("items.profile")
+-- require("items.profile")
 require("items.calendar")
 require("items.widgets")
 -- require("items.media")

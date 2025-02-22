@@ -12,7 +12,7 @@ return {
   transparent = 0x00000000,
 
   bar = {
-    bg = 0xFF151b1e,
+    bg = 0xFF111825,
     border = 0xff2c2e34,
   },
   popup = {
@@ -21,10 +21,10 @@ return {
     card = 0xff232634,
   },
   spaces = {
-    active = 0xff414559,
-    inactive = 0xff303446
+    active = 0xff474b54,
+    inactive = 0xff474b54,
   },
-  bg1 = 0xff242a2d,
+  bg1 = 0xff282f3b,
   bg2 = 0xff414559,
 
   with_alpha = function(color, alpha)

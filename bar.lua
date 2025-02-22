@@ -6,7 +6,7 @@ sbar.bar({
   sticky = true,
   position = "top",
   height = settings.bar.height,
-  margin=10,
+  margin=15,
   color = colors.bar.bg,
   border_color=colors.bar.border,
   border_width=0,

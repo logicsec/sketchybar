@@ -65,12 +65,12 @@ for i = 1, 10, 1 do
       label = { highlight = selected },
       background = { 
         color = selected and colors.spaces.active or colors.spaces.inactive,
-        border_color = selected and colors.red or colors.black
+        border_color = selected and colors.spaces.active or colors.black
       },
       width = selected and 30 or 30
     })
     space_bracket:set({
-      background = { color = colors.transparent, border_color = selected and colors.red or colors.bg2 }
+      background = { color = colors.transparent, border_color = selected and colors.spaces.active or colors.bg2 }
     })
   end)
 
